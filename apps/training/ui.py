@@ -9,29 +9,29 @@ class TrainingComponents:
     def create_training_filters() -> ui.sidebar:
         """Create training data filters."""
         return ui.sidebar(
-            ui.h3("Filter Options"),
-            ui.div(
-                ui.input_date_range(
-                    "date_range",
-                    "Date Range",
-                    start=pd.Timestamp.now().strftime("%Y-%m-01"),
-                    end=pd.Timestamp.now().strftime("%Y-%m-%d")
-                ),
-                class_="mb-3"
-            ),
+            # ui.h3("Filter Options"),
+            # ui.div(
+            #     ui.input_date_range(
+            #         "date_range",
+            #         "Date Range",
+            #         start=pd.Timestamp.now().strftime("%Y-%m-01"),
+            #         end=pd.Timestamp.now().strftime("%Y-%m-%d")
+            #     ),
+            #     class_="mb-3"
+            #),
             # Dynamic training type choices from server
-            ui.div(
-                ui.output_ui("training_type_choices"),
-                class_="mb-3"
-            ),
-            ui.div(
-                ui.input_text(
-                    "training_search",
-                    "Search",
-                    placeholder="Search by name or course..."
-                ),
-                class_="mt-3"
-            )
+            # ui.div(
+            #     ui.output_ui("training_type_choices"),
+            #     class_="mb-3"
+            # ),
+            # ui.div(
+            #     ui.input_text(
+            #         "training_search",
+            #         "Search",
+            #         placeholder="Search by name or course..."
+            #     ),
+            #     class_="mt-3"
+            # )
         )
 
     @staticmethod

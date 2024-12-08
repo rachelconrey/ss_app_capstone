@@ -112,7 +112,7 @@ def server_training_data(input, output, session):
                     'venue', 'completion_date', 'due_date', 
                     'status', 'eligibility'
                 ]),
-                filters=True,
+                filters=False,
                 height="400px"
             )
         
@@ -145,17 +145,17 @@ def server_training_data(input, output, session):
         
         return render.DataGrid(
             df,
-            filters=True,
+            filters=False,
             height="400px"
         )
 
-    @output
-    @render.ui
-    def training_type_choices():
-        """Render training type choices."""
-        types = valid_types.get()
-        return ui.input_select(
-            "training_type",
-            "Filter by Training Type",
-            choices=["ALL"] + sorted(list(types))
-        )
+    # @output
+    # @render.ui
+    # def training_type_choices():
+    #     """Render training type choices."""
+    #     types = valid_types.get()
+    #     return ui.input_select(
+    #         "training_type",
+    #         "Filter by Training Type",
+    #         choices=["ALL"] + sorted(list(types))
+    #     )

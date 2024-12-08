@@ -90,7 +90,6 @@ app_ui = ui.page_fluid(
         create_training_panel(),
         id="selected_navset_bar",
         title=ui.tags.div(
-            ui.output_image("ss_logo"),
             "Sports Source",
             style="display: flex; align-items: center; gap: 10px;"
         )
@@ -165,11 +164,7 @@ def server(input, output, session):
     server_personal_data(input, output, session)
     server_training_data(input, output, session)
     server_dashboard_data(input, output, session) 
-    
-@render.image
-def image():
-    ss_logo = {"src":"static/img/sslogo.jpg", "width": "10%"}
-    return ss_logo if input.show() else None
+
     
 app = App(app_ui, server)
 
