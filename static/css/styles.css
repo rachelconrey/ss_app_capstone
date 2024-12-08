@@ -1,0 +1,99 @@
+/* styles.css */
+.delete-section {
+    border-top: 1px solid #dee2e6;
+    padding-top: 1rem;
+    margin-top: 1rem;
+}
+
+.btn-primary, .btn-secondary, .btn-warning, .btn-danger {
+    width: 100%;
+    margin-top: 0.5rem;
+}
+
+.card {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.sidebar {
+    background-color: #f8f9fa;
+    padding: 1rem;
+}
+
+/* Form styling */
+.form-group {
+    margin-bottom: 1rem;
+}
+
+/* Table styling */
+.table {
+    margin-bottom: 0;
+}
+
+.table th {
+    background-color: #f8f9fa;
+}
+
+/* Value box styling */
+.value-box {
+    transition: transform 0.2s;
+}
+
+.value-box:hover {
+    transform: translateY(-2px);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .sidebar {
+        margin-bottom: 1rem;
+    }
+    
+    .value-box {
+        margin-bottom: 1rem;
+    }
+}
+
+/* Dashboard value box styling */
+.dashboard-metrics .value-box {
+    background-color: white;
+    border: 1px solid #e9ecef;
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s ease-in-out;
+}
+
+.dashboard-metrics .value-box:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.dashboard-metrics .value-box i {
+    font-size: 1.5rem;
+    opacity: 0.7;
+}
+
+.dashboard-metrics .value-box-title {
+    color: #6c757d;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.dashboard-metrics .value-box-value {
+    color: #212529;
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin: 0.5rem 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .dashboard-metrics .value-box {
+        margin-bottom: 1rem;
+    }
+    
+    .dashboard-metrics .value-box-value {
+        font-size: 1.5rem;
+    }
+}
