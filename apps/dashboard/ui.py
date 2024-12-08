@@ -37,9 +37,9 @@ class DashboardComponents:
         """Create training overview section."""
         return ui.div(
             create_card_with_header(
-                "Training Overview",
+                "Course Completion Overview",
                 [
-                    ui.output_plot("training_plot", height="400px"),
+                    ui.output_plot("plot"),
                     ui.div(
                         ui.output_text("training_summary"),
                         class_="mt-3 text-muted"
