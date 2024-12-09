@@ -10,7 +10,7 @@ class MemberDataComponents:
         """Create the member input form with validation."""
         return [
             ui.div(
-                ui.h4("Personal Information", class_="mb-3"),
+                ui.h5("Add Member", class_="mb-3"),
                 ui.div(
                     ui.input_text(
                         "first_name",
@@ -30,26 +30,15 @@ class MemberDataComponents:
                     "phone_number",
                     "Phone (0000000000)"
                 ),
-                class_="personal-info-section"
-            ),
-            ui.div(
-                ui.h4("Emergency Contact", class_="mb-3"),
-                ui.div(
-                    ui.input_text(
-                        "ice_first_name",
-                        "ICE First Name"
-                    ),
-                    ui.input_text(
-                        "ice_last_name",
-                        "ICE Last Name"
-                    ),
-                    class_="name-group"
+                ui.input_text(
+                    "ice_first_name",
+                    "ICE First Name"
                 ),
                 ui.input_text(
-                    "ice_phone_number",
-                    "ICE Phone (0000000000)"
+                    "ice_last_name",
+                    "ICE Last Name"
                 ),
-                class_="emergency-info-section mt-4"
+                class_="personal-info-section"
             ),
             ui.div(
                 create_action_button(
@@ -114,7 +103,7 @@ def create_member_panel() -> ui.nav_panel:
             ui.column(
                 4,
                 create_card_with_header(
-                    "Add New Member",
+                    "Add/Update/Delete Members",
                     MemberDataComponents.create_member_form()
                 )
             ),
