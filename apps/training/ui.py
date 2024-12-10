@@ -1,69 +1,81 @@
 from shiny import ui
 import pandas as pd
+from typing import List
 from libs.ui.components import create_card_with_header
 
 class TrainingComponents:
-    """Training data UI components."""
+    """Training data UI components with improved organization."""
     
     @staticmethod
-    def create_training_filters() -> ui.sidebar:
-        """Create training data filters."""
-        return ui.sidebar(
-            # ui.h3("Filter Options"),
-            # ui.div(
-            #     ui.input_date_range(
-            #         "date_range",
-            #         "Date Range",
-            #         start=pd.Timestamp.now().strftime("%Y-%m-01"),
-            #         end=pd.Timestamp.now().strftime("%Y-%m-%d")
-            #     ),
-            #     class_="mb-3"
-            #),
-            # Dynamic training type choices from server
-            # ui.div(
-            #     ui.output_ui("training_type_choices"),
-            #     class_="mb-3"
-            # ),
-            # ui.div(
-            #     ui.input_text(
-            #         "training_search",
-            #         "Search",
-            #         placeholder="Search by name or course..."
-            #     ),
-            #     class_="mt-3"
-            # )
-        )
-
-    @staticmethod
-    def create_training_content() -> ui.div:
-        """Create the main training content area."""
+    def create_search_filters() -> ui.div:
+        """Create search and filter controls with improved layout."""
         return ui.div(
             ui.row(
                 ui.column(
-                    12,
-                    create_card_with_header(
-                        "Training Records",
-                        [
-                            ui.div(
-                                ui.output_data_frame("training_table"),
-                                class_="mb-2"
-                            ),
-                            ui.div(
-                                ui.output_text("training_count"),
-                                class_="text-muted"
-                            )
-                        ]
+                    6,
+                    ui.div(
+                        ui.input_text(
+                            "search_course",
+                            "Search by course",
+                            placeholder="Enter search term...",
+                            autocomplete="off"
+                        ),
+                        class_="mb-2"
+                    )
+                ),
+                ui.column(
+                    6,
+                    ui.div(
+                        ui.input_select(
+                            "status_filter_training",
+                            "Filter by Status",
+                            choices={
+                                "All": "All Courses",
+                                "Complete": "Complete",
+                                "Incomplete": "Incomplete"
+                            }
+                        ),
+                        class_="mb-2"
                     )
                 )
-            )
+            ),
+            class_="mt-2"
+        )
+
+    @staticmethod
+    def create_training_table() -> ui.card:
+        """Create training directory section with improved structure."""
+        return ui.card(
+            ui.card_header(
+                ui.h2("Training Data", class_="h5 mb-0"),
+                TrainingComponents.create_search_filters()
+            ),
+            ui.div(
+                ui.div(
+                    ui.output_data_frame("training_data"),
+                    class_="table-responsive"
+                ),
+                ui.div(
+                    ui.output_text("record_count_training"),
+                    class_="mt-2 text-muted small"
+                ),
+                class_="p-3"
+            ),
+            full_screen=True,
+            class_="shadow-sm"
         )
 
 def create_training_panel() -> ui.nav_panel:
-    """Create the training management panel."""
+    """Create the complete training management panel with responsive layout."""
     return ui.nav_panel(
         "Training Data",
-        ui.layout_sidebar(
-            TrainingComponents.create_training_filters(),
-            TrainingComponents.create_training_content()
+        ui.row(
+            ui.column(
+                12,
+                ui.div(
+                    TrainingComponents.create_training_table(),
+                    class_="mb-4"
+                )
+            )
         )
     )

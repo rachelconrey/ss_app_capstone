@@ -1,115 +1,80 @@
+# ui.py
 from shiny import ui
 from typing import List
-from libs.ui.components import create_card_with_header, create_action_button
+from libs.ui.components import create_card_with_header
 
 class MemberDataComponents:
-    """Member data management UI components."""
+    """Member directory display UI components with improved organization and accessibility."""
     
     @staticmethod
-    def create_member_form() -> List[ui.tags.div]:
-        """Create the member input form with validation."""
-        return [
-            ui.div(
-                ui.h5("Add Member", class_="mb-3"),
-                ui.div(
-                    ui.input_text(
-                        "first_name",
-                        "First Name *"
-                    ),
-                    ui.input_text(
-                        "last_name",
-                        "Last Name *"
-                    ),
-                    class_="name-group"
+    def create_search_filters() -> ui.div:
+        return ui.div(
+            ui.row(
+                ui.column(
+                    6,
+                    ui.div(
+                        ui.input_text(
+                            "search_member",
+                            "Search by Name or Email",
+                            placeholder="",
+                            autocomplete="off"
+                        ),
+                        class_="mb-2"
+                    )
                 ),
-                ui.input_text(
-                    "email",
-                    "Email *"
-                ),
-                ui.input_text(
-                    "phone_number",
-                    "Phone (0000000000)"
-                ),
-                ui.input_text(
-                    "ice_first_name",
-                    "ICE First Name"
-                ),
-                ui.input_text(
-                    "ice_last_name",
-                    "ICE Last Name"
-                ),
-                class_="personal-info-section"
+                ui.column(
+                    6,
+                    ui.div(
+                        ui.input_select(
+                            "status_filter_member",
+                            "Filter by Status",
+                            choices={
+                                "All": "All Members",
+                                "Eligible": "Eligible",
+                                "Ineligible": "Ineligible"
+                            }
+                        ),
+                        class_="mb-2"
+                    )
+                )
             ),
-            ui.div(
-                create_action_button(
-                    "add_member",
-                    "Add Member",
-                    "btn-primary"
-                ),
-                class_="form-actions mt-4"
-            )
-        ]
+            class_="mt-2"
+        )
 
     @staticmethod
     def create_member_directory() -> ui.card:
-        """Create the member directory section with search and table."""
+        """Create the member directory section with improved structure."""
         return ui.card(
             ui.card_header(
-                "Member Directory",
-                ui.div(
-                    ui.row(
-                        ui.column(
-                            6,
-                            ui.div(
-                                ui.input_text(
-                                    "search",
-                                    "Search by name or email",
-                                    placeholder="Enter search term..."
-                                ),
-                                class_="mb-2"
-                            )
-                        ),
-                        ui.column(
-                            6,
-                            ui.div(
-                                ui.input_select(
-                                    "status_filter",
-                                    "Filter by Status",
-                                    choices=["All", "Eligible", "Ineligible"]
-                                ),
-                                class_="mb-2"
-                            )
-                        )
-                    ),
-                    class_="mt-2"
-                )
+                ui.h2("Member Directory", class_="h5 mb-0"),
+                MemberDataComponents.create_search_filters()
             ),
             ui.div(
-                ui.output_data_frame("member_data"),
                 ui.div(
-                    ui.output_text("record_count"),
-                    class_="mt-2 text-muted"
+                    ui.output_data_frame("member_data"),
+                    class_="table-responsive"
+                ),
+                ui.div(
+                    ui.output_text("record_count_member"),
+                    class_="mt-2 text-muted small"
                 ),
                 class_="p-3"
             ),
-            full_screen=True
+            full_screen=True,
+            class_="shadow-sm"
         )
 
 def create_member_panel() -> ui.nav_panel:
-    """Create the complete member management panel."""
+    """Create the complete member management panel with responsive layout."""
     return ui.nav_panel(
         "Member Management",
         ui.row(
             ui.column(
-                4,
-                create_card_with_header(
-                    "Add/Update/Delete Members",
-                    MemberDataComponents.create_member_form()
+                12,  # Made full width for better responsive behavior
+                ui.div(
+                    MemberDataComponents.create_member_directory(),
+                    class_="mb-4"
                 )
-            ),
-            ui.column(
-                8,
-                MemberDataComponents.create_member_directory()
             )
         )
     )
