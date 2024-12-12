@@ -196,7 +196,7 @@ def server_dashboard_data(input, output, session):
                           x='courseid', 
                           y='completion_percentage',
                           ax=ax,
-                          color='skyblue')
+                          color='#7BD953')
         
         # Customize the plot
         

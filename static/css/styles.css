@@ -56,7 +56,7 @@
 /* Dashboard value box styling */
 .dashboard-metrics .value-box {
     background-color: white;
-    border: 1px solid #e9ecef;
+    border: 1px solid #7BD953;
     border-radius: 0.5rem;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
     transition: transform 0.2s ease-in-out;
@@ -70,6 +70,7 @@
 .dashboard-metrics .value-box i {
     font-size: 1.5rem;
     opacity: 0.7;
+    color:#7BD953;
 }
 
 .dashboard-metrics .value-box-title {
@@ -96,4 +97,53 @@
     .dashboard-metrics .value-box-value {
         font-size: 1.5rem;
     }
+}
+
+/* Page title styling
+.navbar-brand {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: white;
+    background-color: black;
+}/*
+
+/* Page hamburger menu styling
+.navbar-toggler {
+    border: none;
+    color:#dee2e6;
+    background-color: #7BD953;
+}/*
+
+/* Page header background */
+ nav.navbar.navbar-expand-md {
+    background-color: black !important;
+}
+
+/*
+.navbar .nav-underline .nav-link.active
+    border-bottom: 2px solid #7BD953;
+    color: #7BD953;
+}/*
+
+/*
+.navbar .nav{
+    color:#7BD953;
+}/*
+
+/*
+.navbar-nav{
+    color:#7BD953;
+}/*
+
+/*
+.navbar .nav.nav-underline{
+    color:#7BD953;
+}/*
+.navbar-nav {
+    --bs-nav-link-color: #7BD953;
+    --bs-nav-link-hover-color: white;
+} */
+
+.shiny-datagrid {
+    --shiny-datagrid-selected-bgcolor: #7BD953;
 }

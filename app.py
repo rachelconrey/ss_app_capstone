@@ -11,6 +11,8 @@ from datetime import datetime
 from libs.database.db_engine import DatabaseConfig
 from sqlalchemy.sql import text
 import pandas as pd
+from pathlib import Path
+
 
 # Import ui components
 from apps.dashboard.ui import create_dashboard_panel
@@ -22,6 +24,7 @@ from apps.training.ui import create_training_panel
 from apps.member.personal_data import server_personal_data
 from apps.training.training_data import server_training_data
 from apps.dashboard.dashboard import server_dashboard_data
+from apps.training.crud_operations import server_training_crud
 
 class ApplicationConfig:
     
@@ -89,10 +92,14 @@ app_ui = ui.page_fluid(
         create_member_panel(),
         create_training_panel(),
         id="selected_navset_bar",
+        
         title=ui.tags.div(
-            "Sports Source",
-            style="display: flex; align-items: center; gap: 10px;"
-        )
+            ui.img(src="sslogo.jpg", height="90px", style="margin:5px;"),
+            ui.h4(" " + "Data Management System"), 
+            style="display: flex; align-items: center; gap: 10px; font-size: 40; font-weight: bold; inline=True"
+        ),
+        bg="light",
+        inverse=True,
     )
 )
 
@@ -160,13 +167,14 @@ def update_training_statuses():
 # Server logic
 def server(input, output, session):
     """Main server function that coordinates all components."""
-    # Call component servers
-    server_personal_data(input, output, session)
-    server_training_data(input, output, session)
-    server_dashboard_data(input, output, session) 
-
     
-app = App(app_ui, server)
+    module_data = server_training_data(input, output, session)
+    server_training_crud(input, output, session, module_data=module_data)
+    server_personal_data(input, output, session)
+    server_dashboard_data(input, output, session) 
+    
+www_dir = Path(__file__).parent / "www"
+app = App(app_ui, server, static_assets=www_dir)
 
 if __name__ == "__main__":
     try:
@@ -189,3 +197,5 @@ if __name__ == "__main__":
         logging.critical(f"Critical error starting app: {str(e)}")
         logging.critical(traceback.format_exc())
         sys.exit(1)
+        
+    

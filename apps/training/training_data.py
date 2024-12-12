@@ -1,3 +1,4 @@
+# training_data.py
 import pandas as pd
 from sqlalchemy import text
 from shiny import reactive, render, ui
@@ -5,29 +6,12 @@ import logging
 from typing import Optional, Dict, Set
 from dataclasses import dataclass
 from libs.database.db_engine import DatabaseConfig
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-@dataclass
-class TrainingRecord:
-    """Data structure for training information."""
-    id: int
-    first_name: str
-    last_name: str
-    courseid: str
-    venue: str
-    completion_date: str
-    due_date: str
-    status: str
-    eligibility: str
-
-    @classmethod
-    def from_dict(cls, data: Dict) -> 'TrainingRecord':
-        """Create TrainingRecord from dictionary."""
-        return cls(**data)
-
 class TrainingDataManager:
-    """Handle training data operations."""
+    """Handle training data operations with CRUD functionality."""
     
     TRAINING_QUERY = """
         SELECT 
@@ -49,12 +33,7 @@ class TrainingDataManager:
             t.completion_date DESC NULLS LAST,
             p.last_name ASC
     """
-
-    COURSE_TYPES_QUERY = """
-        SELECT DISTINCT courseid 
-        FROM training_course_data
-    """
-
+        
     @staticmethod
     def get_training_data() -> pd.DataFrame:
         """Get training data with error handling and validation."""
@@ -64,12 +43,6 @@ class TrainingDataManager:
             with engine.connect() as conn:
                 df = pd.read_sql_query(text(TrainingDataManager.TRAINING_QUERY), conn)
             
-            # Validate required columns
-            required_columns = {'id', 'courseid', 'status', 'completion_date'}
-            missing_columns = required_columns - set(df.columns)
-            if missing_columns:
-                raise ValueError(f"Missing required columns: {missing_columns}")
-                
             # Clean data
             df = TrainingDataManager._clean_training_data(df)
             
@@ -100,122 +73,52 @@ class TrainingDataManager:
         
         return df
 
-    @staticmethod
-    def get_valid_training_types() -> Set[str]:
-        """Get all valid training types with error handling."""
-        engine = DatabaseConfig.get_db_engine()
-        
-        try:
-            with engine.connect() as conn:
-                result = conn.execute(text(TrainingDataManager.COURSE_TYPES_QUERY))
-                types = {str(row[0]).strip() for row in result if row[0]}
-                logger.info(f"Retrieved {len(types)} valid training types")
-                return types
-                
-        except Exception as e:
-            logger.error(f"Error getting training types: {str(e)}")
-            raise
-
-    @staticmethod
-    def filter_training_data(
-        df: pd.DataFrame,
-        search_term: Optional[str] = None,
-        status: Optional[str] = None
-    ) -> pd.DataFrame:
-        """Filter training data based on search term and status."""
-        if df.empty:
-            return df
-
-        if search_term:
-            search_term = search_term.lower()
-            df = df[
-                df['courseid'].str.contains(search_term, na=False) |
-                df['venue'].str.contains(search_term, na=False)
-            ]
-        
-        if status and status != 'All':
-            df = df[df['status'].str.lower() == status.lower()]
-            
-        return df
-
 def server_training_data(input, output, session):
-    """Server logic for training data with improved error handling and state management."""
+    """Server logic for training data with CRUD operations."""
     
-    # Initialize reactive values
+    # Reactive values for managing state
+    selected_record = reactive.Value(None)
     training_data = reactive.Value(pd.DataFrame())
-    valid_types = reactive.Value(set())
     
     @reactive.Effect
-    def load_initial_data():
-        """Load initial data with error handling."""
+    def initialize_data():
+        """Load initial training data."""
         try:
-            results = TrainingDataManager.get_training_data()
-            training_data.set(results)
-            logger.info(f"Successfully loaded {len(results)} training records")
+            data = TrainingDataManager.get_training_data()
+            training_data.set(data)
         except Exception as e:
-            error_msg = f"Failed to load training data: {str(e)}"
-            logger.error(error_msg)
             ui.notification_show(
-                error_msg,
-                type="error",
-                duration=None
+                f"Error loading training data: {str(e)}",
+                type="error"
             )
-
-    @reactive.Effect
-    def load_training_types():
-        """Load valid training types with error handling."""
+    
+    def update_training_table():
+        """Refresh training data table."""
         try:
-            types = TrainingDataManager.get_valid_training_types()
-            valid_types.set(types)
-            logger.info(f"Loaded {len(types)} valid training types")
+            data = TrainingDataManager.get_training_data()
+            training_data.set(data)
         except Exception as e:
-            error_msg = f"Failed to load training types: {str(e)}"
-            logger.error(error_msg)
             ui.notification_show(
-                error_msg,
-                type="error",
-                duration=None
+                f"Error refreshing training data: {str(e)}",
+                type="error"
             )
-
-    @reactive.calc
-    def filtered_data():
-        """Calculate filtered data with input validation."""
-        df = training_data.get()
-        if df.empty:
-            return df
-
-        search_term = getattr(input, 'search_course', lambda: None)()
-        status = getattr(input, 'status_filter_training', lambda: 'All')()
         
-        return TrainingDataManager.filter_training_data(df, search_term, status)
-
     @output
     @render.data_frame
     def training_table():
-        """Render training data table with configured display options."""
-        df = filtered_data()
-        
-        # Format display data
-        display_df = df.copy()
-        if not display_df.empty:
-            # Format dates for display
-            date_columns = ['completion_date', 'due_date']
-            for col in date_columns:
-                if col in display_df.columns:
-                    display_df[col] = display_df[col].dt.strftime('%Y-%m-%-d')
-        
+        """Render training data table."""
+        df = training_data.get()
         return render.DataGrid(
-            display_df,
-            filters=False,
-            height="400px",
-            selection_mode="row"
+            df,
+            row_selection_mode="single",
+            height="400px"
         )
-
-    @output
-    @render.text
-    def record_count_training():
-        """Display record count with percentage."""
-        filtered_count = len(filtered_data())
-        total_count = len(training_data.get())
-        percentage = (filtered_count / total_count * 100) if total_count > 0 else 0
-        return f"Showing {filtered_count:,} of {total_count:,} records ({percentage:.1f}%)"
+        
+    module_data = {
+        'selected_record': selected_record,
+        'training_data': training_data,
+        'update_training_table': update_training_table
+    }
+    
+    # Important: Return the module data
+    return module_data
