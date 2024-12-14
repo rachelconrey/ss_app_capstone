@@ -119,7 +119,7 @@ def server_training_data(input, output, session):
             if 'due_date' in df.columns:
                 df['due_date'] = df['due_date'].dt.strftime('%Y-%m-%d')
                 
-            # Create display columns in desired order, excluding id and userid
+            # Create display columns in desired order
             display_columns = [
                 'first_name', 'last_name', 'courseid', 'venue',
                 'completion_date', 'due_date', 'status'
@@ -141,13 +141,14 @@ def server_training_data(input, output, session):
             # Capitalize names
             display_df['First Name'] = display_df['First Name'].str.title()
             display_df['Last Name'] = display_df['Last Name'].str.title()
-                
-        return render.DataGrid(
-            display_df,
-            row_selection_mode="single",
-            height="400px",
-            width="100%"
-        )
+            
+            return render.DataGrid(
+                display_df,
+                selection_mode="row",  # Changed from "single" to "row"
+                height="400px",
+                width="100%"
+            )
+        return None
 
     # Handle table selection
     @reactive.Effect

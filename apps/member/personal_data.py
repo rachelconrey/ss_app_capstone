@@ -107,7 +107,7 @@ def server_personal_data(input, output, session):
             df['first_name'] = df['first_name'].str.title()
             df['last_name'] = df['last_name'].str.title()
             
-            # Create display columns in desired order, excluding id
+            # Create display columns in desired order
             display_columns = [
                 'first_name', 'last_name', 'email', 'phone_number',
                 'ice_first_name', 'ice_last_name', 'ice_phone_number', 'eligibility'
@@ -127,12 +127,13 @@ def server_personal_data(input, output, session):
             
             display_df = df[display_columns].rename(columns=column_labels)
             
-        return render.DataGrid(
-            display_df,
-            row_selection_mode="single",
-            height="400px",
-            width="100%"
-        )
+            return render.DataGrid(
+                display_df,
+                selection_mode="row",  # Changed from "single" to "row"
+                height="400px",
+                width="100%"
+            )
+        return None
 
     # Handle table selection
     @reactive.Effect
@@ -158,6 +159,24 @@ def server_personal_data(input, output, session):
                 ui.update_text("edit_ice_phone", value=member['ice_phone_number'])
         else:
             selected_member.set(None)
+            
+        
+    def refresh_table_and_maintain_state():
+        """Update table while maintaining current page and selection."""
+        try:
+            page = input.member_table_page() or 0  # Get current page directly from input
+            
+            # Update the table data
+            update_member_table()
+            
+            # Update the grid page
+            ui.update_data_grid(
+                "member_table",
+                page=page
+            )
+                
+        except Exception as e:
+            logger.error(f"Error refreshing table: {str(e)}")
 
     # Return necessary data for other modules
     return {
