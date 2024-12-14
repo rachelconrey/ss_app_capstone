@@ -106,9 +106,29 @@ def server_personal_data(input, output, session):
             # Format names for display
             df['first_name'] = df['first_name'].str.title()
             df['last_name'] = df['last_name'].str.title()
-                
+            
+            # Create display columns in desired order, excluding id
+            display_columns = [
+                'first_name', 'last_name', 'email', 'phone_number',
+                'ice_first_name', 'ice_last_name', 'ice_phone_number', 'eligibility'
+            ]
+            
+            # Rename columns for display
+            column_labels = {
+                'first_name': 'First Name',
+                'last_name': 'Last Name',
+                'email': 'Email',
+                'phone_number': 'Phone',
+                'ice_first_name': 'ICE First Name',
+                'ice_last_name': 'ICE Last Name',
+                'ice_phone_number': 'ICE Phone',
+                'eligibility': 'Status'
+            }
+            
+            display_df = df[display_columns].rename(columns=column_labels)
+            
         return render.DataGrid(
-            df,
+            display_df,
             row_selection_mode="single",
             height="400px",
             width="100%"

@@ -112,15 +112,38 @@ def server_training_data(input, output, session):
         """Render training data table."""
         df = training_data.get()
         if not df.empty:
-            # Format dates for display
             df = df.copy()
+            # Format dates for display
             if 'completion_date' in df.columns:
                 df['completion_date'] = df['completion_date'].dt.strftime('%Y-%m-%d')
             if 'due_date' in df.columns:
                 df['due_date'] = df['due_date'].dt.strftime('%Y-%m-%d')
                 
+            # Create display columns in desired order, excluding id and userid
+            display_columns = [
+                'first_name', 'last_name', 'courseid', 'venue',
+                'completion_date', 'due_date', 'status'
+            ]
+            
+            # Rename columns for display
+            column_labels = {
+                'first_name': 'First Name',
+                'last_name': 'Last Name',
+                'courseid': 'Course',
+                'venue': 'Venue',
+                'completion_date': 'Completion Date',
+                'due_date': 'Due Date',
+                'status': 'Status'
+            }
+            
+            display_df = df[display_columns].rename(columns=column_labels)
+            
+            # Capitalize names
+            display_df['First Name'] = display_df['First Name'].str.title()
+            display_df['Last Name'] = display_df['Last Name'].str.title()
+                
         return render.DataGrid(
-            df,
+            display_df,
             row_selection_mode="single",
             height="400px",
             width="100%"
