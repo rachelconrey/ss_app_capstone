@@ -8,6 +8,8 @@
 .btn-primary, .btn-secondary, .btn-warning, .btn-danger {
     width: 100%;
     margin-top: 0.5rem;
+    background-color: #7BD953;
+    color: #000000;
 }
 
 .card {
@@ -99,51 +101,29 @@
     }
 }
 
-/* Page title styling
-.navbar-brand {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: white;
-    background-color: black;
-}/*
-
-/* Page hamburger menu styling
-.navbar-toggler {
-    border: none;
-    color:#dee2e6;
-    background-color: #7BD953;
-}/*
+.nav {
+    --bs-nav-link-color: black;
+    --bs-nav-link-hover-color: #7BD953;
+    --bs-nav-link-color: #7BD953;
+}
 
 /* Page header background */
  nav.navbar.navbar-expand-md {
     background-color: black !important;
 }
 
-/*
-.navbar .nav-underline .nav-link.active
-    border-bottom: 2px solid #7BD953;
-    color: #7BD953;
-}/*
+shiny-data-frame .shiny-data-grid.shiny-data-grid-grid > table > tbody > tr[aria-selected=true],
+shiny-data-frame .shiny-data-grid.shiny-data-grid-table > table > tbody > tr[aria-selected=true] {
+    background-color: #7BD953 !important;
+    color: #000000 !important;
+}
 
-/*
-.navbar .nav{
-    color:#7BD953;
-}/*
+shiny-data-frame .shiny-data-grid.shiny-data-grid-grid > table > tbody > tr[aria-selected=true] > td,
+shiny-data-frame .shiny-data-grid.shiny-data-grid-table > table > tbody > tr[aria-selected=true] > td {
+    background-color: #7BD953 !important;
+    color: #000000 !important;
+}
 
-/*
-.navbar-nav{
-    color:#7BD953;
-}/*
-
-/*
-.navbar .nav.nav-underline{
-    color:#7BD953;
-}/*
-.navbar-nav {
-    --bs-nav-link-color: #7BD953;
-    --bs-nav-link-hover-color: white;
-} */
-
-.shiny-datagrid {
-    --shiny-datagrid-selected-bgcolor: #7BD953;
+shiny-data-frame .shiny-data-grid.shiny-data-grid-grid > table > tbody > tr:hover {
+    background-color: #9BE979 !important;
 }

@@ -12,7 +12,7 @@ from libs.database.db_engine import DatabaseConfig
 from sqlalchemy.sql import text
 import pandas as pd
 from pathlib import Path
-
+from libs.crud_manager import CRUDManager
 
 # Import ui components
 from apps.dashboard.ui import create_dashboard_panel
@@ -25,6 +25,7 @@ from apps.member.personal_data import server_personal_data
 from apps.training.training_data import server_training_data
 from apps.dashboard.dashboard import server_dashboard_data
 from apps.training.crud_operations import server_training_crud
+from apps.member.crud_operations import server_personal_crud
 
 class ApplicationConfig:
     
@@ -165,13 +166,19 @@ def update_training_statuses():
         raise
 
 # Server logic
+# app.py
 def server(input, output, session):
     """Main server function that coordinates all components."""
     
-    module_data = server_training_data(input, output, session)
-    server_training_crud(input, output, session, module_data=module_data)
+    personal_module = server_personal_data(input, output, session)
+    training_module = server_training_data(input, output, session)
+    
+    # Initialize other modules, passing training module data as needed
+    server_training_crud(input, output, session, module_data=training_module)
+    server_personal_crud(input, output, session, module_data=personal_module)
     server_personal_data(input, output, session)
-    server_dashboard_data(input, output, session) 
+    server_dashboard_data(input, output, session)
+    
     
 www_dir = Path(__file__).parent / "www"
 app = App(app_ui, server, static_assets=www_dir)

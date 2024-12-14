@@ -1,29 +1,31 @@
-# ui.py
-from shiny import ui
-from typing import List
-from libs.ui.components import create_card_with_header
+# apps/member/ui.py
 
-class MemberDataComponents:
-    """Member directory display UI components with improved organization and accessibility."""
+from shiny import ui
+from datetime import datetime
+from typing import Dict, Any
+
+class PersonalComponents:
+    """Personal data UI components with improved organization."""
     
     @staticmethod
     def create_search_filters() -> ui.div:
+        """Create search and filter components."""
         return ui.div(
             ui.row(
                 ui.column(
-                    6,
+                    3,
                     ui.div(
                         ui.input_text(
                             "search_member",
-                            "Search by Name or Email",
-                            placeholder="",
+                            "Search by name",
+                            placeholder="Enter search term...",
                             autocomplete="off"
                         ),
                         class_="mb-2"
                     )
                 ),
                 ui.column(
-                    6,
+                    9,
                     ui.div(
                         ui.input_select(
                             "status_filter_member",
@@ -42,38 +44,142 @@ class MemberDataComponents:
         )
 
     @staticmethod
-    def create_member_directory() -> ui.card:
-        """Create the member directory section with improved structure."""
-        return ui.card(
-            ui.card_header(
-                ui.h2("Member Directory", class_="h5 mb-0"),
-                MemberDataComponents.create_search_filters()
-            ),
-            ui.div(
-                ui.div(
-                    ui.output_data_frame("member_data"),
+    def create_member_table() -> ui.div:
+        """Create the member records table."""
+        return ui.div(
+            ui.card(
+                ui.card_header("Member Records"),
+                ui.card_body(
+                    ui.output_data_frame("member_table"),
                     class_="table-responsive"
-                ),
-                ui.div(
-                    ui.output_text("record_count_member"),
-                    class_="mt-2 text-muted small"
-                ),
-                class_="p-3"
+                )
             ),
-            full_screen=True,
-            class_="shadow-sm"
+            class_="mb-3"
         )
 
+    @staticmethod
+    def create_add_member_form() -> ui.div:
+        """Create form for adding new members."""
+        return ui.div(
+            ui.input_text("new_first_name", "First Name"),
+            ui.input_text("new_last_name", "Last Name"),
+            ui.input_text("new_email", "Email"),
+            ui.input_text("new_phone", "Phone Number"),
+            ui.input_text("new_ice_first_name", "Emergency Contact First Name"),
+            ui.input_text("new_ice_last_name", "Emergency Contact Last Name"),
+            ui.input_text("new_ice_phone", "Emergency Contact Phone"),
+            ui.input_action_button(
+                "add_member_btn",
+                "Add Member",
+                class_="btn-primary mt-2"
+            )
+        )
+
+    @staticmethod
+    def create_edit_member_form() -> ui.div:
+        """Create form for editing members."""
+        return ui.div(
+            ui.output_text("selected_member_text"),
+            ui.panel_well(
+                ui.div(
+                    ui.input_text("edit_first_name", "First Name"),
+                    ui.input_text("edit_last_name", "Last Name"),
+                    ui.input_text("edit_email", "Email"),
+                    ui.input_text("edit_phone", "Phone Number"),
+                    ui.input_text("edit_ice_first_name", "Emergency Contact First Name"),
+                    ui.input_text("edit_ice_last_name", "Emergency Contact Last Name"),
+                    ui.input_text("edit_ice_phone", "Emergency Contact Phone"),
+                    ui.input_action_button(
+                        "update_member_btn",
+                        "Update Member",
+                        class_="btn-warning mt-2"
+                    ),
+                    class_="mb-2"
+                )
+            )
+        )
+
+    @staticmethod
+    def create_delete_member_form() -> ui.div:
+        """Create form for deleting members."""
+        return ui.div(
+            ui.output_text("delete_member_text"),
+            ui.panel_well(
+                ui.div(
+                    ui.p("Are you sure you want to delete this member? This action cannot be undone."),
+                    ui.input_action_button(
+                        "delete_member_btn",
+                        "Delete Member",
+                        class_="btn-danger mt-2"
+                    ),
+                    class_="mb-2"
+                )
+            )
+        )
+
+def create_crud_content() -> ui.div:
+    """Create the complete CRUD operations interface."""
+    return ui.div(
+        ui.h3("Member Management", class_="h5 mb-3"),
+        
+        # Create tabs for different operations
+        ui.navset_card_tab(
+            # Add new member tab
+            ui.nav_panel(
+                "Add Member",
+                ui.accordion(
+                    ui.accordion_panel(
+                        "Add New Member",
+                        PersonalComponents.create_add_member_form()
+                    ),
+                    id="add_member_accordion"
+                )
+            ),
+            
+            # Edit member tab
+            ui.nav_panel(
+                "Edit Member",
+                ui.accordion(
+                    ui.accordion_panel(
+                        "Edit Member",
+                        PersonalComponents.create_edit_member_form()
+                    ),
+                    id="edit_member_accordion"
+                )
+            ),
+            
+            # Delete member tab
+            ui.nav_panel(
+                "Delete Member",
+                ui.accordion(
+                    ui.accordion_panel(
+                        "Delete Member",
+                        PersonalComponents.create_delete_member_form()
+                    ),
+                    id="delete_member_accordion"
+                )
+            ),
+            id="member_crud_tabs"
+        ),
+        class_="mb-3"
+    )
+
 def create_member_panel() -> ui.nav_panel:
-    """Create the complete member management panel with responsive layout."""
+    """Create the complete member management panel."""
     return ui.nav_panel(
         "Member Management",
-        ui.row(
-            ui.column(
-                12,  # Made full width for better responsive behavior
-                ui.div(
-                    MemberDataComponents.create_member_directory(),
-                    class_="mb-4"
+        ui.page_fluid(
+            ui.row(
+                # CRUD operations sidebar
+                ui.column(
+                    4,
+                    create_crud_content()
+                ),
+                # Main content area
+                ui.column(
+                    8,
+                    PersonalComponents.create_search_filters(),
+                    PersonalComponents.create_member_table()
                 )
             )
         )

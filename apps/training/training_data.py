@@ -3,8 +3,7 @@ import pandas as pd
 from sqlalchemy import text
 from shiny import reactive, render, ui
 import logging
-from typing import Optional, Dict, Set
-from dataclasses import dataclass
+from typing import Optional, Dict
 from libs.database.db_engine import DatabaseConfig
 from datetime import datetime
 
@@ -16,6 +15,7 @@ class TrainingDataManager:
     TRAINING_QUERY = """
         SELECT 
             t.id,
+            t.userid,
             p.first_name,
             p.last_name,
             t.courseid,
@@ -81,7 +81,7 @@ def server_training_data(input, output, session):
     training_data = reactive.Value(pd.DataFrame())
     
     @reactive.Effect
-    def initialize_data():
+    def _load_initial_data():
         """Load initial training data."""
         try:
             data = TrainingDataManager.get_training_data()
@@ -91,13 +91,16 @@ def server_training_data(input, output, session):
                 f"Error loading training data: {str(e)}",
                 type="error"
             )
-    
+
+    @reactive.Effect
     def update_training_table():
         """Refresh training data table."""
         try:
             data = TrainingDataManager.get_training_data()
             training_data.set(data)
+            logger.info("Training data table updated successfully")
         except Exception as e:
+            logger.error(f"Error refreshing training data: {str(e)}")
             ui.notification_show(
                 f"Error refreshing training data: {str(e)}",
                 type="error"
@@ -108,17 +111,47 @@ def server_training_data(input, output, session):
     def training_table():
         """Render training data table."""
         df = training_data.get()
+        if not df.empty:
+            # Format dates for display
+            df = df.copy()
+            if 'completion_date' in df.columns:
+                df['completion_date'] = df['completion_date'].dt.strftime('%Y-%m-%d')
+            if 'due_date' in df.columns:
+                df['due_date'] = df['due_date'].dt.strftime('%Y-%m-%d')
+                
         return render.DataGrid(
             df,
             row_selection_mode="single",
-            height="400px"
+            height="400px",
+            width="100%"
         )
-        
-    module_data = {
+
+    # Handle table selection
+    @reactive.Effect
+    @reactive.event(input.training_table_selected_rows)
+    def handle_selection():
+        """Update selected record when table selection changes."""
+        selected_indices = input.training_table_selected_rows()
+        if selected_indices and len(selected_indices) > 0:
+            df = training_data.get()
+            if not df.empty and selected_indices[0] < len(df):
+                record_id = df.iloc[selected_indices[0]]['id']
+                selected_record.set(record_id)
+                logger.info(f"Selected training record ID: {record_id}")
+                
+                # Pre-fill the edit form with current completion date
+                current_completion_date = df.iloc[selected_indices[0]]['completion_date']
+                if current_completion_date:
+                    ui.update_date(
+                        "edit_training_date",
+                        value=pd.to_datetime(current_completion_date).date()
+                    )
+        else:
+            selected_record.set(None)
+
+    # Return all the necessary data for other modules to use
+    return {
         'selected_record': selected_record,
         'training_data': training_data,
         'update_training_table': update_training_table
     }
-    
-    # Important: Return the module data
-    return module_data
