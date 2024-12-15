@@ -24,8 +24,6 @@ from apps.training.ui import create_training_panel
 from apps.member.personal_data import server_personal_data
 from apps.training.training_data import server_training_data
 from apps.dashboard.dashboard import server_dashboard_data
-from apps.training.crud_operations import server_training_crud
-from apps.member.crud_operations import server_personal_crud
 
 class ApplicationConfig:
     
@@ -166,16 +164,9 @@ def update_training_statuses():
         raise
 
 # Server logic
-# app.py
 def server(input, output, session):
     """Main server function that coordinates all components."""
     
-    personal_module = server_personal_data(input, output, session)
-    training_module = server_training_data(input, output, session)
-    
-    # Initialize other modules, passing training module data as needed
-    server_training_crud(input, output, session, module_data=training_module)
-    server_personal_crud(input, output, session, module_data=personal_module)
     server_personal_data(input, output, session)
     server_dashboard_data(input, output, session)
     

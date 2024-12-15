@@ -144,7 +144,7 @@ def server_training_data(input, output, session):
             
             return render.DataGrid(
                 display_df,
-                selection_mode="row",  # Changed from "single" to "row"
+                selection_mode="row",
                 height="400px",
                 width="100%"
             )
@@ -173,7 +173,6 @@ def server_training_data(input, output, session):
         else:
             selected_record.set(None)
 
-    # Return all the necessary data for other modules to use
     return {
         'selected_record': selected_record,
         'training_data': training_data,

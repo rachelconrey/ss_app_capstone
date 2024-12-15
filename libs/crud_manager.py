@@ -1,209 +1,261 @@
-# crud_manager.py
-
 from sqlalchemy import text
-import pandas as pd
-from datetime import datetime
+from sqlalchemy.exc import SQLAlchemyError
+from typing import Dict, Any, Optional, List, Tuple
 import logging
-from typing import Optional, Dict, Any
+from datetime import datetime
 from libs.database.db_engine import DatabaseConfig
 
 logger = logging.getLogger(__name__)
 
 class CRUDManager:
-    """Unified CRUD operations manager for both personal and training data."""
+    """Unified CRUD operations manager with improved error handling and transactions."""
     
-    @staticmethod
-    def validate_member_data(data: Dict[str, Any]) -> bool:
-        """Validate member data before database operations."""
-        required_fields = ['first_name', 'last_name', 'email', 'phone_number']
-        return all(data.get(field) for field in required_fields)
+    class ValidationError(Exception):
+        """Custom exception for validation errors."""
+        pass
 
     @staticmethod
-    def validate_training_data(data: Dict[str, Any]) -> bool:
-        """Validate training data before database operations."""
-        required_fields = ['userid', 'courseid', 'completion_date']
-        return all(data.get(field) for field in required_fields)
+    def _validate_data(data: Dict[str, Any], required_fields: List[str]) -> None:
+        """Validate required fields in data."""
+        missing_fields = [field for field in required_fields if not data.get(field)]
+        if missing_fields:
+            raise CRUDManager.ValidationError(
+                f"Missing required fields: {', '.join(missing_fields)}"
+            )
 
     @staticmethod
-    def add_member(data: Dict[str, Any]) -> int:
-        """Add new member with validation."""
-        if not CRUDManager.validate_member_data(data):
-            raise ValueError("Missing required member data fields")
-
+    def _execute_transaction(queries: List[Tuple[str, Dict[str, Any]]]) -> Any:
+        """Execute multiple queries in a single transaction."""
         engine = DatabaseConfig.get_db_engine()
         try:
-            with engine.connect() as conn:
-                query = text("""
-                    INSERT INTO personal_data (
-                        first_name, last_name, email, phone_number,
-                        ice_first_name, ice_last_name, ice_phone_number, 
-                        eligibility
-                    ) VALUES (
-                        :first_name, :last_name, :email, :phone_number,
-                        :ice_first_name, :ice_last_name, :ice_phone_number,
-                        'Ineligible'
-                    ) RETURNING id
-                """)
-                result = conn.execute(query, data)
-                member_id = result.scalar()
-                conn.commit()
-                return member_id
-        except Exception as e:
-            logger.error(f"Error adding member: {str(e)}")
+            with engine.begin() as conn:  # Automatically manages transactions
+                result = None
+                for query_str, params in queries:
+                    result = conn.execute(text(query_str), params)
+                return result
+        except SQLAlchemyError as e:
+            logger.error(f"Database error in transaction: {str(e)}")
             raise
+        except Exception as e:
+            logger.error(f"Unexpected error in transaction: {str(e)}")
+            raise
+
+    # Member Operations
+    @staticmethod
+    def add_member(member_data: Dict[str, Any]) -> int:
+        """Add new member with proper validation and role assignment."""
+        required_fields = ['first_name', 'last_name', 'email']
+        CRUDManager._validate_data(member_data, required_fields)
+
+        # Generate userid from name
+        userid = f"{member_data['first_name'][0].lower()}{member_data['last_name'].lower()}"
+        
+        queries = [
+            # Create login record
+            ("""
+                INSERT INTO login_data (userid, password, role, date_created)
+                VALUES (:userid, 'default_password', 
+                    (SELECT role FROM roles_data LIMIT 1),
+                    CURRENT_TIMESTAMP)
+            """, {'userid': userid}),
+            
+            # Create personal record
+            ("""
+                INSERT INTO personal_data (
+                    userid, first_name, last_name, email, phone_number,
+                    ice_first_name, ice_last_name, ice_phone_number, eligibility
+                ) VALUES (
+                    :userid, :first_name, :last_name, :email, :phone_number,
+                    :ice_first_name, :ice_last_name, :ice_phone_number, 'Ineligible'
+                ) RETURNING id
+            """, {
+                **member_data,
+                'userid': userid,
+                'phone_number': member_data.get('phone_number', ''),
+                'ice_first_name': member_data.get('ice_first_name', ''),
+                'ice_last_name': member_data.get('ice_last_name', ''),
+                'ice_phone_number': member_data.get('ice_phone_number', '')
+            })
+        ]
+        
+        result = CRUDManager._execute_transaction(queries)
+        return result.scalar()
 
     @staticmethod
-    def update_member(member_id: int, data: Dict[str, Any]) -> bool:
-        """Update existing member."""
-        if not CRUDManager.validate_member_data(data):
-            raise ValueError("Missing required member data fields")
+    def update_member(member_id: int, member_data: Dict[str, Any]) -> bool:
+        """Update member with validation."""
+        required_fields = ['first_name', 'last_name', 'email']
+        CRUDManager._validate_data(member_data, required_fields)
 
-        engine = DatabaseConfig.get_db_engine()
-        try:
-            with engine.connect() as conn:
-                query = text("""
-                    UPDATE personal_data 
-                    SET first_name = :first_name,
-                        last_name = :last_name,
-                        email = :email,
-                        phone_number = :phone_number,
-                        ice_first_name = :ice_first_name,
-                        ice_last_name = :ice_last_name,
-                        ice_phone_number = :ice_phone_number
-                    WHERE id = :id
-                """)
-                data['id'] = member_id
-                result = conn.execute(query, data)
-                conn.commit()
-                return result.rowcount > 0
-        except Exception as e:
-            logger.error(f"Error updating member: {str(e)}")
-            raise
+        query = ("""
+            UPDATE personal_data
+            SET first_name = :first_name,
+                last_name = :last_name,
+                email = :email,
+                phone_number = :phone_number,
+                ice_first_name = :ice_first_name,
+                ice_last_name = :ice_last_name,
+                ice_phone_number = :ice_phone_number
+            WHERE id = :id
+            RETURNING true
+        """, {**member_data, 'id': member_id})
+        
+        result = CRUDManager._execute_transaction([query])
+        return bool(result.scalar())
 
     @staticmethod
     def delete_member(member_id: int) -> bool:
-        """Delete member and associated training records."""
-        engine = DatabaseConfig.get_db_engine()
-        try:
-            with engine.connect() as conn:
-                # First delete training records
-                delete_training = text("""
-                    DELETE FROM training_status_data 
-                    WHERE userid = :member_id
-                """)
-                conn.execute(delete_training, {'member_id': member_id})
-                
-                # Then delete member
-                delete_member = text("""
-                    DELETE FROM personal_data 
-                    WHERE id = :member_id
-                """)
-                result = conn.execute(delete_member, {'member_id': member_id})
-                conn.commit()
-                return result.rowcount > 0
-        except Exception as e:
-            logger.error(f"Error deleting member: {str(e)}")
-            raise
+        """Delete member and associated records in correct order."""
+        queries = [
+            # Get userid first
+            ("""
+                SELECT userid FROM personal_data WHERE id = :id
+            """, {'id': member_id}),
+            
+            # Delete training records
+            ("""
+                DELETE FROM training_status_data
+                WHERE userid = (SELECT userid FROM personal_data WHERE id = :id)
+            """, {'id': member_id}),
+            
+            # Delete login data
+            ("""
+                DELETE FROM login_data
+                WHERE userid = (SELECT userid FROM personal_data WHERE id = :id)
+            """, {'id': member_id}),
+            
+            # Delete personal data
+            ("""
+                DELETE FROM personal_data
+                WHERE id = :id
+                RETURNING true
+            """, {'id': member_id})
+        ]
+        
+        result = CRUDManager._execute_transaction(queries)
+        return bool(result.scalar())
+
+    # Training Operations
+    @staticmethod
+    def add_training(training_data: Dict[str, Any]) -> int:
+        """Add training record with automatic status updates."""
+        required_fields = ['userid', 'courseid', 'completion_date']
+        CRUDManager._validate_data(training_data, required_fields)
+
+        queries = [
+            # Insert training record
+            ("""
+                INSERT INTO training_status_data (
+                    userid, courseid, completion_date, created_at, updated_at
+                ) VALUES (
+                    :userid, :courseid, :completion_date,
+                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                ) RETURNING id
+            """, training_data),
+            
+            # Update due date
+            ("""
+                UPDATE training_status_data t
+                SET due_date = t.completion_date + 
+                    (SELECT frequency_in_months FROM training_course_data c 
+                     WHERE c.courseid = t.courseid) * INTERVAL '1 month'
+                WHERE id = currval('training_status_data_id_seq')
+            """, {}),
+            
+            # Update status
+            ("""
+                UPDATE training_status_data
+                SET status = CASE 
+                    WHEN due_date >= CURRENT_DATE THEN 'Current'
+                    ELSE 'Overdue'
+                END
+                WHERE id = currval('training_status_data_id_seq')
+            """, {})
+        ]
+        
+        result = CRUDManager._execute_transaction(queries)
+        CRUDManager._update_member_eligibility(training_data['userid'])
+        return result.scalar()
 
     @staticmethod
-    def add_training(data: Dict[str, Any]) -> int:
-        """Add new training record with validation."""
-        if not CRUDManager.validate_training_data(data):
-            raise ValueError("Missing required training data fields")
-
-        engine = DatabaseConfig.get_db_engine()
-        try:
-            with engine.connect() as conn:
-                query = text("""
-                    INSERT INTO training_status_data (
-                        userid, courseid, completion_date
-                    ) VALUES (
-                        :userid, :courseid, :completion_date
-                    ) RETURNING id
-                """)
-                result = conn.execute(query, data)
-                training_id = result.scalar()
-                conn.commit()
-                
-                # Update eligibility after adding training
-                CRUDManager._update_member_eligibility(conn, data['userid'])
-                return training_id
-        except Exception as e:
-            logger.error(f"Error adding training record: {str(e)}")
-            raise
-
-    @staticmethod
-    def update_training(training_id: int, data: Dict[str, Any]) -> bool:
-        """Update existing training record."""
-        engine = DatabaseConfig.get_db_engine()
-        try:
-            with engine.connect() as conn:
-                # Get userid for eligibility update
-                get_userid = text("SELECT userid FROM training_status_data WHERE id = :id")
-                userid = conn.execute(get_userid, {'id': training_id}).scalar()
-                
-                # Update training record
-                query = text("""
-                    UPDATE training_status_data 
-                    SET completion_date = :completion_date
-                    WHERE id = :id
-                """)
-                data['id'] = training_id
-                result = conn.execute(query, data)
-                
-                # Update eligibility
-                if userid:
-                    CRUDManager._update_member_eligibility(conn, userid)
-                
-                conn.commit()
-                return result.rowcount > 0
-        except Exception as e:
-            logger.error(f"Error updating training record: {str(e)}")
-            raise
+    def update_training(training_id: int, training_data: Dict[str, Any]) -> bool:
+        """Update training record with automatic status updates."""
+        queries = [
+            # Update training record
+            ("""
+                UPDATE training_status_data
+                SET completion_date = :completion_date,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = :id
+                RETURNING userid
+            """, {**training_data, 'id': training_id}),
+            
+            # Update due date
+            ("""
+                UPDATE training_status_data t
+                SET due_date = t.completion_date + 
+                    (SELECT frequency_in_months FROM training_course_data c 
+                     WHERE c.courseid = t.courseid) * INTERVAL '1 month'
+                WHERE id = :id
+            """, {'id': training_id}),
+            
+            # Update status
+            ("""
+                UPDATE training_status_data
+                SET status = CASE 
+                    WHEN due_date >= CURRENT_DATE THEN 'Current'
+                    ELSE 'Overdue'
+                END
+                WHERE id = :id
+                RETURNING userid
+            """, {'id': training_id})
+        ]
+        
+        result = CRUDManager._execute_transaction(queries)
+        userid = result.scalar()
+        if userid:
+            CRUDManager._update_member_eligibility(userid)
+        return bool(userid)
 
     @staticmethod
     def delete_training(training_id: int) -> bool:
-        """Delete training record and update eligibility."""
-        engine = DatabaseConfig.get_db_engine()
-        try:
-            with engine.connect() as conn:
-                # Get userid for eligibility update
-                get_userid = text("SELECT userid FROM training_status_data WHERE id = :id")
-                userid = conn.execute(get_userid, {'id': training_id}).scalar()
-                
-                # Delete training record
-                query = text("DELETE FROM training_status_data WHERE id = :id")
-                result = conn.execute(query, {'id': training_id})
-                
-                # Update eligibility
-                if userid:
-                    CRUDManager._update_member_eligibility(conn, userid)
-                
-                conn.commit()
-                return result.rowcount > 0
-        except Exception as e:
-            logger.error(f"Error deleting training record: {str(e)}")
-            raise
+        """Delete training record and update member eligibility."""
+        queries = [
+            # Get userid for eligibility update
+            ("""
+                SELECT userid FROM training_status_data WHERE id = :id
+            """, {'id': training_id}),
+            
+            # Delete training record
+            ("""
+                DELETE FROM training_status_data
+                WHERE id = :id
+                RETURNING true
+            """, {'id': training_id})
+        ]
+        
+        result = CRUDManager._execute_transaction(queries)
+        userid = result.scalar()
+        if userid:
+            CRUDManager._update_member_eligibility(userid)
+        return bool(result.scalar())
 
     @staticmethod
-    def _update_member_eligibility(conn, userid: int) -> None:
+    def _update_member_eligibility(userid: int) -> None:
         """Update member eligibility based on training status."""
-        query = text("""
-            UPDATE personal_data 
+        query = ("""
+            UPDATE personal_data
             SET eligibility = CASE 
                 WHEN EXISTS (
-                    SELECT 1 
-                    FROM training_status_data t 
-                    WHERE t.userid = personal_data.id 
-                    AND status = 'Overdue'
-                ) THEN 'Ineligible'
-                WHEN NOT EXISTS (
-                    SELECT 1 
-                    FROM training_status_data t 
-                    WHERE t.userid = personal_data.id
+                    SELECT 1 FROM training_status_data 
+                    WHERE userid = :userid AND status = 'Overdue'
+                ) OR NOT EXISTS (
+                    SELECT 1 FROM training_status_data 
+                    WHERE userid = :userid
                 ) THEN 'Ineligible'
                 ELSE 'Eligible'
             END
-            WHERE id = :userid
-        """)
-        conn.execute(query, {'userid': userid})
+            WHERE userid = :userid
+        """, {'userid': userid})
+        
+        CRUDManager._execute_transaction([query])
