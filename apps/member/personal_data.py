@@ -3,6 +3,7 @@ from sqlalchemy import text
 from shiny import reactive, render, ui
 import logging
 from libs.database.db_engine import DatabaseConfig
+from libs.crud_manager import CRUDManager
 
 logger = logging.getLogger(__name__)
 
@@ -66,32 +67,181 @@ def server_personal_data(input, output, session):
     # Reactive values for managing state
     selected_member = reactive.Value(None)
     member_data = reactive.Value(pd.DataFrame())
+    filtered_data = reactive.Value(pd.DataFrame())
     
-    @reactive.Effect
-    def _load_initial_data():
-        """Load initial member data."""
+    def fetch_member_data():
+        """Fetch member data from database."""
         try:
             data = PersonalDataManager.get_member_data()
             member_data.set(data)
+            apply_filters()  # Apply filters after fetching new data
+            logger.info("Successfully fetched member data")
         except Exception as e:
+            logger.error(f"Error fetching member data: {str(e)}")
             ui.notification_show(
-                f"Error loading member data: {str(e)}",
+                "Error loading member data",
+                type="error",
+                duration=5000
+            )
+    
+    def apply_filters():
+        """Apply search and status filters to member data."""
+        df = member_data.get()
+        if df.empty:
+            filtered_data.set(pd.DataFrame())
+            return
+
+        # Apply search filter
+        search_term = input.search_member().lower().strip()
+        if search_term:
+            mask = (
+                df['first_name'].str.contains(search_term, na=False) |
+                df['last_name'].str.contains(search_term, na=False)
+            )
+            df = df[mask]
+
+        # Apply status filter
+        status_filter = input.status_filter_member()
+        if status_filter != "All":
+            df = df[df['eligibility'] == status_filter]
+
+        filtered_data.set(df)
+
+    @reactive.Effect
+    def _load_initial_data():
+        """Load initial member data."""
+        fetch_member_data()
+
+    @reactive.Effect
+    @reactive.event(input.add_member_btn)
+    def handle_add_member():
+        """Handle adding new member."""
+        try:
+            member_data = {
+                'first_name': input.new_first_name(),
+                'last_name': input.new_last_name(),
+                'email': input.new_email(),
+                'phone_number': input.new_phone(),
+                'ice_first_name': input.new_ice_first_name(),
+                'ice_last_name': input.new_ice_last_name(),
+                'ice_phone_number': input.new_ice_phone()
+            }
+            
+            CRUDManager.add_member(member_data)
+            
+            # Clear form
+            for field in ['first_name', 'last_name', 'email', 'phone', 
+                         'ice_first_name', 'ice_last_name', 'ice_phone']:
+                ui.update_text(f"new_{field}", value="")
+            
+            ui.notification_show(
+                "Member added successfully",
+                type="success",
+                duration=3000
+            )
+            fetch_member_data()  # Refresh the table
+            
+        except Exception as e:
+            logger.error(f"Error adding member: {str(e)}")
+            ui.notification_show(
+                f"Error adding member: {str(e)}",
                 type="error",
                 duration=5000
             )
 
     @reactive.Effect
-    @reactive.event(input.update_member_btn, input.add_member_btn, input.delete_member_btn)
-    def refresh_data():
-        """Refresh data after any CRUD operation."""
+    @reactive.event(input.update_member_btn)
+    def handle_update_member():
+        """Handle updating member."""
         try:
-            data = PersonalDataManager.get_member_data()
-            member_data.set(data)
-            logger.info("Member data refreshed successfully")
+            member_id = selected_member.get()
+            if not member_id:
+                ui.notification_show(
+                    "Please select a member to update",
+                    type="error",
+                    duration=5000
+                )
+                return
+
+            member_data = {
+                'first_name': input.edit_first_name(),
+                'last_name': input.edit_last_name(),
+                'email': input.edit_email(),
+                'phone_number': input.edit_phone(),
+                'ice_first_name': input.edit_ice_first_name(),
+                'ice_last_name': input.edit_ice_last_name(),
+                'ice_phone_number': input.edit_ice_phone()
+            }
+            
+            try:
+                success = CRUDManager.update_member(member_id, member_data)
+                
+                if success:
+                    ui.notification_show(
+                        "Member updated successfully",
+                        type="success",
+                        duration=3000
+                    )
+                    # Need to explicitly trigger a refresh
+                    fetch_member_data()
+                else:
+                    ui.notification_show(
+                        "Failed to update member - no record found",
+                        type="error",
+                        duration=5000
+                    )
+                    
+            except Exception as e:
+                ui.notification_show(
+                    f"Error updating member: {str(e)}",
+                    type="error",
+                    duration=5000
+                )
+                logger.error(f"Error in update operation: {str(e)}")
+                
         except Exception as e:
-            logger.error(f"Error refreshing member data: {str(e)}")
+            logger.error(f"Error preparing update data: {str(e)}")
             ui.notification_show(
-                "Error refreshing data. Please try again.",
+                "Error preparing update data",
+                type="error",
+                duration=5000
+            )
+
+    @reactive.Effect
+    @reactive.event(input.delete_member_btn)
+    def handle_delete_member():
+        """Handle deleting member."""
+        try:
+            member_id = selected_member.get()
+            if not member_id:
+                ui.notification_show(
+                    "Please select a member to delete",
+                    type="error",
+                    duration=5000
+                )
+                return
+
+            success = CRUDManager.delete_member(member_id)
+            
+            if success:
+                ui.notification_show(
+                    "Member deleted successfully",
+                    type="success",
+                    duration=3000
+                )
+                fetch_member_data()  # Refresh the table
+                selected_member.set(None)  # Clear selection
+            else:
+                ui.notification_show(
+                    "Failed to delete member",
+                    type="error",
+                    duration=5000
+                )
+                
+        except Exception as e:
+            logger.error(f"Error deleting member: {str(e)}")
+            ui.notification_show(
+                f"Error deleting member: {str(e)}",
                 type="error",
                 duration=5000
             )
@@ -100,7 +250,7 @@ def server_personal_data(input, output, session):
     @render.data_frame
     def member_table():
         """Render member data table."""
-        df = member_data.get()
+        df = filtered_data.get()  # Use filtered data instead of raw data
         if df.empty:
             return None
             
@@ -140,7 +290,7 @@ def server_personal_data(input, output, session):
         """Update selected member when table selection changes."""
         selected_indices = input.member_table_selected_rows()
         if selected_indices and len(selected_indices) > 0:
-            df = member_data.get()
+            df = filtered_data.get()  # Use filtered data for selection
             if not df.empty and selected_indices[0] < len(df):
                 selected_row = df.iloc[selected_indices[0]]
                 selected_member.set(selected_row['id'])
@@ -156,8 +306,16 @@ def server_personal_data(input, output, session):
         else:
             selected_member.set(None)
 
+    # Add reactive effect for search/filter changes
+    @reactive.Effect
+    @reactive.event(input.search_member, input.status_filter_member)
+    def _handle_filters():
+        """Handle changes to search or filter inputs."""
+        apply_filters()
+
     return {
         'selected_member': selected_member,
         'member_data': member_data,
-        'refresh_data': refresh_data
+        'filtered_data': filtered_data,
+        'fetch_member_data': fetch_member_data
     }

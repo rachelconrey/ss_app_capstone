@@ -86,21 +86,37 @@ class CRUDManager:
         required_fields = ['first_name', 'last_name', 'email']
         CRUDManager._validate_data(member_data, required_fields)
 
-        query = ("""
-            UPDATE personal_data
-            SET first_name = :first_name,
-                last_name = :last_name,
-                email = :email,
-                phone_number = :phone_number,
-                ice_first_name = :ice_first_name,
-                ice_last_name = :ice_last_name,
-                ice_phone_number = :ice_phone_number
-            WHERE id = :id
-            RETURNING true
-        """, {**member_data, 'id': member_id})
-        
-        result = CRUDManager._execute_transaction([query])
-        return bool(result.scalar())
+        engine = DatabaseConfig.get_db_engine()
+        try:
+            with engine.begin() as conn:
+                result = conn.execute(
+                    text("""
+                        UPDATE personal_data
+                        SET first_name = :first_name,
+                            last_name = :last_name,
+                            email = :email,
+                            phone_number = :phone_number,
+                            ice_first_name = :ice_first_name,
+                            ice_last_name = :ice_last_name,
+                            ice_phone_number = :ice_phone_number
+                        WHERE id = :id
+                        RETURNING true
+                    """),
+                    {**member_data, 'id': member_id}
+                )
+                success = bool(result.scalar())
+                if success:
+                    logger.info(f"Successfully updated member {member_id}")
+                else:
+                    logger.error(f"Failed to update member {member_id}")
+                return success
+                    
+        except SQLAlchemyError as e:
+            logger.error(f"Database error in update_member: {str(e)}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error in update_member: {str(e)}")
+            raise
 
     @staticmethod
     def delete_member(member_id: int) -> bool:
