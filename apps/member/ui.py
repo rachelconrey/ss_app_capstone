@@ -90,6 +90,9 @@ class PersonalComponents:
                         class_="btn-warning mt-2"
                     ),
                     class_="mb-2"
+                ),
+                ui.busy_indicators.options(
+                    spinner_type=None
                 )
             )
         )

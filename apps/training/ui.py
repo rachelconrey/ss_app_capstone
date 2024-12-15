@@ -12,11 +12,14 @@ class TrainingComponents:
                 ui.column(
                     3,
                     ui.div(
-                        ui.input_text(
+                        ui.input_select(
                             "search_course",
                             "Search by course",
-                            placeholder="Enter course name",
-                            autocomplete="off"
+                            choices={
+                                "All": "All",
+                                "levy": "Levy",
+                                "safeserve": "SafeServe",
+                            }
                         ),
                         class_="mb-2"
                     )

@@ -2,27 +2,26 @@ import os
 from pathlib import Path
 import logging
 from logging.handlers import RotatingFileHandler
-from shiny import App, ui
+from shiny import App, ui, reactive
 import sys
 from dotenv import load_dotenv
 import traceback
 from libs.database.db_engine import DatabaseConfig
 from sqlalchemy.sql import text
-from pathlib import Path
 
 # Import ui components
 from apps.dashboard.ui import create_dashboard_panel
 from apps.member.ui import create_member_panel
 from apps.training.ui import create_training_panel
-
+from apps.login.ui import create_login_page
 
 # Import server components
 from apps.member.personal_data import server_personal_data
 from apps.dashboard.dashboard import server_dashboard_data
 from apps.training.training_data import server_training_data
+from apps.login.server import server_login
 
 class ApplicationConfig:
-    
     REQUIRED_ENV_VARS = [
         'DB_USER', 'DB_PASSWORD', 'DB_HOST', 'DB_PORT', 'DB_NAME'
     ]
@@ -69,35 +68,37 @@ class LoggingConfig:
             ]
         )
 
-# Initialize logging
-LoggingConfig.setup_logging()
+def create_main_content():
+    """Create the main application content."""
+    return ui.div(
+        ui.navset_bar(
+            create_dashboard_panel(),
+            create_member_panel(),
+            create_training_panel(),
+            id="selected_navset_bar",
+            
+            title=ui.tags.div(
+                ui.img(src="sslogo.jpg", height="90px", style="margin:5px;"),
+                ui.h4(" " + "Data Management System"), 
+                style="display: flex; align-items: center; gap: 10px; font-size: 40; font-weight: bold; inline=True"
+            ),
+            bg="light",
+            inverse=True,
+        )
+    )
 
-# Load environment variables
-try:
-    ApplicationConfig.load_environment()
-except Exception as e:
-    logging.critical(f"Failed to load environment: {str(e)}")
-    sys.exit(1)
-
-# UI creation
+# Create the base UI with conditional visibility
 app_ui = ui.page_fluid(
     ui.include_css("static/css/styles.css"),
-    ui.navset_bar(
-        create_dashboard_panel(),
-        create_member_panel(),
-        create_training_panel(),
-        id="selected_navset_bar",
-        
-        title=ui.tags.div(
-            ui.img(src="sslogo.jpg", height="90px", style="margin:5px;"),
-            ui.h4(" " + "Data Management System"), 
-            style="display: flex; align-items: center; gap: 10px; font-size: 40; font-weight: bold; inline=True"
-        ),
-        bg="light",
-        inverse=True,
+    ui.panel_conditional(
+        "!input.is_authenticated",
+        create_login_page()
+    ),
+    ui.panel_conditional(
+        "input.is_authenticated",
+        create_main_content()
     )
 )
-
 
 def update_training_statuses():
     """Update training due dates, status, and eligibility."""
@@ -161,15 +162,25 @@ def update_training_statuses():
         logging.error(f"Error updating training statuses: {str(e)}")
         raise
 
-# Server logic
 def server(input, output, session):
     """Main server function that coordinates all components."""
     
-    server_personal_data(input, output, session)
-    server_dashboard_data(input, output, session)
-    server_training_data(input, output, session)
+    # Initialize login server
+    login_data = server_login(input, output, session)
     
+    # Server components will only be initialized after authentication
+    initialized = reactive.Value(False)
     
+    @reactive.Effect
+    def _():
+        """Initialize other server components after authentication."""
+        if login_data["is_authenticated"].get() and not initialized.get():
+            server_personal_data(input, output, session)
+            server_dashboard_data(input, output, session)
+            server_training_data(input, output, session)
+            initialized.set(True)
+
+# Initialize app
 www_dir = Path(__file__).parent / "www"
 app = App(app_ui, server, static_assets=www_dir)
 
@@ -194,5 +205,4 @@ if __name__ == "__main__":
         logging.critical(f"Critical error starting app: {str(e)}")
         logging.critical(traceback.format_exc())
         sys.exit(1)
-        
     
