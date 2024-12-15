@@ -119,29 +119,31 @@ def update_training_statuses():
                 UPDATE training_status_data
                 SET status = 
                     CASE 
-                        WHEN due_date IS NULL THEN NULL
+                        WHEN completion_date IS NULL THEN NULL
                         WHEN CAST(due_date AS DATE) >= CURRENT_DATE THEN 'Current'
                         ELSE 'Overdue'
                     END
                 WHERE completion_date IS NOT NULL
             """)
             
-            # Update eligibility
+            # Update eligibility - check if member has completed ALL required courses
+            # and none are overdue
             eligibility_query = text("""
                 UPDATE personal_data p
                 SET eligibility = 
                     CASE 
-                        WHEN EXISTS (
+                        WHEN NOT EXISTS (
+                            -- Check for any missing or overdue courses
                             SELECT 1 
-                            FROM training_status_data t 
-                            WHERE t.userid = p.userid 
-                            AND (t.status = 'Overdue' OR t.status IS NULL)
-                        ) THEN 'Ineligible'
-                        WHEN EXISTS (
-                            SELECT 1 
-                            FROM training_status_data t 
-                            WHERE t.userid = p.userid
-                            AND t.status = 'Current'
+                            FROM training_course_data c
+                            WHERE NOT EXISTS (
+                                -- Look for a valid (current) completion record
+                                SELECT 1 
+                                FROM training_status_data t
+                                WHERE t.userid = p.userid 
+                                AND t.courseid = c.courseid
+                                AND t.status = 'Current'
+                            )
                         ) THEN 'Eligible'
                         ELSE 'Ineligible'
                     END
