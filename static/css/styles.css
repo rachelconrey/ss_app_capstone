@@ -135,29 +135,3 @@ shiny-data-frame .shiny-data-grid.shiny-data-grid-grid > table > tbody > tr:hove
 .shiny-spinner-hidden {
     display: none !important;
 }
-
-.shiny-busy { 
-    display: none !important;
-}
-
-/* Remove spinner background */
-.loading {
-    display: none !important;
-}
-
-.recalculating {
-    display: none !important;
-}
-
-/* Hide any Shiny loading elements */
-#shiny-notification-panel {
-    display: none !important;
-}
-
-.shiny-notification-panel {
-    display: none !important;
-}
-
-.shiny-notification {
-    display: none !important;
-}
