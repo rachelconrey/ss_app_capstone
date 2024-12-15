@@ -12,6 +12,7 @@ class PersonalDataManager:
     MEMBER_QUERY = """
         SELECT 
             p.id,
+            p.userid,
             p.first_name,
             p.last_name,
             p.email,
@@ -75,62 +76,64 @@ def server_personal_data(input, output, session):
         except Exception as e:
             ui.notification_show(
                 f"Error loading member data: {str(e)}",
-                type="error"
+                type="error",
+                duration=5000
             )
 
     @reactive.Effect
-    def update_member_table():
-        """Refresh member data table."""
+    @reactive.event(input.update_member_btn, input.add_member_btn, input.delete_member_btn)
+    def refresh_data():
+        """Refresh data after any CRUD operation."""
         try:
             data = PersonalDataManager.get_member_data()
             member_data.set(data)
-            logger.info("Member data table updated successfully")
+            logger.info("Member data refreshed successfully")
         except Exception as e:
             logger.error(f"Error refreshing member data: {str(e)}")
             ui.notification_show(
-                f"Error refreshing member data: {str(e)}",
-                type="error"
+                "Error refreshing data. Please try again.",
+                type="error",
+                duration=5000
             )
-        
+
     @output
     @render.data_frame
     def member_table():
         """Render member data table."""
         df = member_data.get()
-        if not df.empty:
-            df = df.copy()
-            # Format names for display
-            df['first_name'] = df['first_name'].str.title()
-            df['last_name'] = df['last_name'].str.title()
+        if df.empty:
+            return None
             
-            display_columns = [
-                'first_name', 'last_name', 'email', 'phone_number',
-                'ice_first_name', 'ice_last_name', 'ice_phone_number', 'eligibility'
-            ]
-            
-            # Rename columns for display
-            column_labels = {
-                'first_name': 'First Name',
-                'last_name': 'Last Name',
-                'email': 'Email',
-                'phone_number': 'Phone',
-                'ice_first_name': 'ICE First Name',
-                'ice_last_name': 'ICE Last Name',
-                'ice_phone_number': 'ICE Phone',
-                'eligibility': 'Status'
-            }
-            
-            display_df = df[display_columns].rename(columns=column_labels)
-            
-            return render.DataGrid(
-                display_df,
-                selection_mode="row",
-                height="400px",
-                width="100%"
-            )
-        return None
+        df = df.copy()
+        # Format names for display
+        df['first_name'] = df['first_name'].str.title()
+        df['last_name'] = df['last_name'].str.title()
+        
+        display_columns = [
+            'first_name', 'last_name', 'email', 'phone_number',
+            'ice_first_name', 'ice_last_name', 'ice_phone_number', 'eligibility'
+        ]
+        
+        column_labels = {
+            'first_name': 'First Name',
+            'last_name': 'Last Name',
+            'email': 'Email',
+            'phone_number': 'Phone',
+            'ice_first_name': 'ICE First Name',
+            'ice_last_name': 'ICE Last Name',
+            'ice_phone_number': 'ICE Phone',
+            'eligibility': 'Status'
+        }
+        
+        display_df = df[display_columns].rename(columns=column_labels)
+        
+        return render.DataGrid(
+            display_df,
+            row_selection_mode="single",
+            height="400px",
+            width="100%"
+        )
 
-    # Handle table selection
     @reactive.Effect
     @reactive.event(input.member_table_selected_rows)
     def handle_selection():
@@ -139,43 +142,22 @@ def server_personal_data(input, output, session):
         if selected_indices and len(selected_indices) > 0:
             df = member_data.get()
             if not df.empty and selected_indices[0] < len(df):
-                member_id = df.iloc[selected_indices[0]]['id']
-                selected_member.set(member_id)
-                logger.info(f"Selected member ID: {member_id}")
+                selected_row = df.iloc[selected_indices[0]]
+                selected_member.set(selected_row['id'])
                 
                 # Pre-fill the edit form
-                member = df.iloc[selected_indices[0]]
-                ui.update_text("edit_first_name", value=member['first_name'].title())
-                ui.update_text("edit_last_name", value=member['last_name'].title())
-                ui.update_text("edit_email", value=member['email'])
-                ui.update_text("edit_phone", value=member['phone_number'])
-                ui.update_text("edit_ice_first_name", value=member['ice_first_name'])
-                ui.update_text("edit_ice_last_name", value=member['ice_last_name'])
-                ui.update_text("edit_ice_phone", value=member['ice_phone_number'])
+                ui.update_text("edit_first_name", value=selected_row['first_name'].title())
+                ui.update_text("edit_last_name", value=selected_row['last_name'].title())
+                ui.update_text("edit_email", value=selected_row['email'])
+                ui.update_text("edit_phone", value=selected_row['phone_number'])
+                ui.update_text("edit_ice_first_name", value=selected_row['ice_first_name'])
+                ui.update_text("edit_ice_last_name", value=selected_row['ice_last_name'])
+                ui.update_text("edit_ice_phone", value=selected_row['ice_phone_number'])
         else:
             selected_member.set(None)
-            
-        
-    def refresh_table_and_maintain_state():
-        """Update table while maintaining current page and selection."""
-        try:
-            page = input.member_table_page() or 0
-            
-            # Update the table data
-            update_member_table()
-            
-            # Update the grid page
-            ui.update_data_grid(
-                "member_table",
-                page=page
-            )
-                
-        except Exception as e:
-            logger.error(f"Error refreshing table: {str(e)}")
 
-    # Return necessary data for other modules
     return {
         'selected_member': selected_member,
         'member_data': member_data,
-        'update_member_table': update_member_table
+        'refresh_data': refresh_data
     }

@@ -243,26 +243,75 @@ class CRUDManager:
 
     @staticmethod
     def delete_training(training_id: int) -> bool:
-        """Delete training record and update member eligibility."""
-        queries = [
-            # Get userid for eligibility update
-            ("""
-                SELECT userid FROM training_status_data WHERE id = :id
-            """, {'id': training_id}),
-            
-            # Delete training record
-            ("""
-                DELETE FROM training_status_data
-                WHERE id = :id
-                RETURNING true
-            """, {'id': training_id})
-        ]
+        """Delete training record and update member eligibility.
         
-        result = CRUDManager._execute_transaction(queries)
-        userid = result.scalar()
-        if userid:
-            CRUDManager._update_member_eligibility(userid)
-        return bool(result.scalar())
+        Args:
+            training_id: ID of the training record to delete
+            
+        Returns:
+            bool: True if deletion was successful, False otherwise
+        """
+        engine = DatabaseConfig.get_db_engine()
+        try:
+            with engine.begin() as conn:
+                # First get the userid for eligibility update
+                get_userid_query = text("""
+                    SELECT userid 
+                    FROM training_status_data 
+                    WHERE id = :id
+                """)
+                result = conn.execute(get_userid_query, {'id': training_id})
+                userid = result.scalar()
+                
+                if not userid:
+                    logger.error(f"No training record found with id {training_id}")
+                    return False
+                
+                # Delete the training record
+                delete_query = text("""
+                    DELETE FROM training_status_data
+                    WHERE id = :id
+                    RETURNING true
+                """)
+                result = conn.execute(delete_query, {'id': training_id})
+                success = bool(result.scalar())
+                
+                if success:
+                    # Update the member's eligibility
+                    update_eligibility_query = text("""
+                        UPDATE personal_data p
+                        SET eligibility = 
+                            CASE 
+                                WHEN EXISTS (
+                                    SELECT 1 
+                                    FROM training_status_data t 
+                                    WHERE t.userid = p.userid 
+                                    AND (t.status = 'Overdue' OR t.status IS NULL)
+                                ) THEN 'Ineligible'
+                                WHEN EXISTS (
+                                    SELECT 1 
+                                    FROM training_status_data t 
+                                    WHERE t.userid = p.userid
+                                    AND t.status = 'Current'
+                                ) THEN 'Eligible'
+                                ELSE 'Ineligible'
+                            END
+                        WHERE userid = :userid
+                    """)
+                    conn.execute(update_eligibility_query, {'userid': userid})
+                    
+                    logger.info(f"Successfully deleted training record {training_id}")
+                    return True
+                else:
+                    logger.error(f"Failed to delete training record {training_id}")
+                    return False
+                    
+        except SQLAlchemyError as e:
+            logger.error(f"Database error in delete_training: {str(e)}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error in delete_training: {str(e)}")
+            raise
 
     @staticmethod
     def _update_member_eligibility(userid: str) -> None:
