@@ -13,7 +13,7 @@ class PersonalComponents:
                         ui.input_text(
                             "search_member",
                             "Search by name",
-                            placeholder="Enter search term...",
+                            placeholder="Enter name",
                             autocomplete="off"
                         ),
                         class_="mb-2"
@@ -26,7 +26,7 @@ class PersonalComponents:
                             "status_filter_member",
                             "Filter by Status",
                             choices={
-                                "All": "All Members",
+                                "All": "All",
                                 "Eligible": "Eligible",
                                 "Ineligible": "Ineligible"
                             }
@@ -134,7 +134,7 @@ def create_crud_content() -> ui.div:
                 "Edit Member",
                 ui.accordion(
                     ui.accordion_panel(
-                        "Edit Member",
+                        "Member",
                         PersonalComponents.create_edit_member_form()
                     ),
                     id="edit_member_accordion"
@@ -170,8 +170,10 @@ def create_member_panel() -> ui.nav_panel:
                 # Main content area
                 ui.column(
                     8,
-                    PersonalComponents.create_search_filters(),
-                    PersonalComponents.create_member_table()
+                    ui.div(
+                        PersonalComponents.create_search_filters(),
+                        PersonalComponents.create_member_table(),# Add height to main content area
+                    )
                 )
             )
         )

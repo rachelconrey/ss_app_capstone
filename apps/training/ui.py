@@ -15,7 +15,7 @@ class TrainingComponents:
                         ui.input_text(
                             "search_course",
                             "Search by course",
-                            placeholder="Enter search term...",
+                            placeholder="Enter course name",
                             autocomplete="off"
                         ),
                         class_="mb-2"
@@ -28,7 +28,7 @@ class TrainingComponents:
                             "status_filter_training",
                             "Filter by Status",
                             choices={
-                                "All": "All Courses",
+                                "All": "All",
                                 "Current": "Current",
                                 "Overdue": "Overdue"
                             }

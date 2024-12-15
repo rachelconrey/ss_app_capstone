@@ -295,8 +295,8 @@ def server_personal_data(input, output, session):
         
         return render.DataGrid(
             display_df,
-            row_selection_mode="single",
-            height="400px",
+            selection_mode="row",
+            height="800px",
             width="100%"
         )
 

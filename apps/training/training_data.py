@@ -238,7 +238,7 @@ def server_training_data(input, output, session):
             return render.DataGrid(
                 display_df,
                 selection_mode="row",
-                height="400px",
+                height="800px",
                 width="100%"
             )
         return None
