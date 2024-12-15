@@ -1,12 +1,8 @@
-# apps/member/personal_data.py
-
 import pandas as pd
 from sqlalchemy import text
 from shiny import reactive, render, ui
 import logging
-from typing import Optional, Dict
 from libs.database.db_engine import DatabaseConfig
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +103,6 @@ def server_personal_data(input, output, session):
             df['first_name'] = df['first_name'].str.title()
             df['last_name'] = df['last_name'].str.title()
             
-            # Create display columns in desired order
             display_columns = [
                 'first_name', 'last_name', 'email', 'phone_number',
                 'ice_first_name', 'ice_last_name', 'ice_phone_number', 'eligibility'
@@ -129,7 +124,7 @@ def server_personal_data(input, output, session):
             
             return render.DataGrid(
                 display_df,
-                selection_mode="row",  # Changed from "single" to "row"
+                selection_mode="row",
                 height="400px",
                 width="100%"
             )
@@ -164,7 +159,7 @@ def server_personal_data(input, output, session):
     def refresh_table_and_maintain_state():
         """Update table while maintaining current page and selection."""
         try:
-            page = input.member_table_page() or 0  # Get current page directly from input
+            page = input.member_table_page() or 0
             
             # Update the table data
             update_member_table()

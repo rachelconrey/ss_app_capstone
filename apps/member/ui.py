@@ -1,11 +1,6 @@
-# apps/member/ui.py
-
 from shiny import ui
-from datetime import datetime
-from typing import Dict, Any
 
 class PersonalComponents:
-    """Personal data UI components with improved organization."""
     
     @staticmethod
     def create_search_filters() -> ui.div:
@@ -124,7 +119,6 @@ def create_crud_content() -> ui.div:
         
         # Create tabs for different operations
         ui.navset_card_tab(
-            # Add new member tab
             ui.nav_panel(
                 "Add Member",
                 ui.accordion(
@@ -136,7 +130,6 @@ def create_crud_content() -> ui.div:
                 )
             ),
             
-            # Edit member tab
             ui.nav_panel(
                 "Edit Member",
                 ui.accordion(
@@ -148,7 +141,6 @@ def create_crud_content() -> ui.div:
                 )
             ),
             
-            # Delete member tab
             ui.nav_panel(
                 "Delete Member",
                 ui.accordion(

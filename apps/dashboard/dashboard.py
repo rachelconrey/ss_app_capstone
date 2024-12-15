@@ -1,6 +1,4 @@
-# Import statements need to be at the very top
 import matplotlib
-# Set backend to Agg before importing pyplot
 matplotlib.use('Agg')
 
 from typing import Dict, Any
@@ -198,8 +196,6 @@ def server_dashboard_data(input, output, session):
                           ax=ax,
                           color='#7BD953')
         
-        # Customize the plot
-        
         ax.set_xlabel("Course ID", fontsize=12)
         ax.set_ylabel("Completion Percentage (%)", fontsize=12)
         
@@ -207,13 +203,10 @@ def server_dashboard_data(input, output, session):
         for container in ax.containers:
             ax.bar_label(container, fmt='%.1f%%', padding=3)
         
-        # Rotate x-axis labels for better readability
         plt.xticks(rotation=45, ha='right')
         
-        # Set y-axis limits
         ax.set_ylim(0, 100)
         
-        # Adjust layout to prevent label cutoff
         plt.tight_layout()
         
         return fig

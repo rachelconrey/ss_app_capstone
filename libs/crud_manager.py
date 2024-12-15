@@ -1,8 +1,7 @@
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, List, Tuple
 import logging
-from datetime import datetime
 from libs.database.db_engine import DatabaseConfig
 
 logger = logging.getLogger(__name__)

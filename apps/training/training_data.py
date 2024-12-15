@@ -1,11 +1,8 @@
-# training_data.py
 import pandas as pd
 from sqlalchemy import text
 from shiny import reactive, render, ui
 import logging
-from typing import Optional, Dict
 from libs.database.db_engine import DatabaseConfig
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
 

@@ -2,17 +2,13 @@ import os
 from pathlib import Path
 import logging
 from logging.handlers import RotatingFileHandler
-from shiny import App, render, ui, reactive, Outputs
+from shiny import App, ui
 import sys
-from typing import Dict, Any, List
 from dotenv import load_dotenv
 import traceback
-from datetime import datetime
 from libs.database.db_engine import DatabaseConfig
 from sqlalchemy.sql import text
-import pandas as pd
 from pathlib import Path
-from libs.crud_manager import CRUDManager
 
 # Import ui components
 from apps.dashboard.ui import create_dashboard_panel
@@ -22,7 +18,6 @@ from apps.training.ui import create_training_panel
 
 # Import server components
 from apps.member.personal_data import server_personal_data
-from apps.training.training_data import server_training_data
 from apps.dashboard.dashboard import server_dashboard_data
 
 class ApplicationConfig:

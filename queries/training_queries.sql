@@ -1,5 +1,3 @@
--- queries/training_queries.sql
-
 -- Create new training record
 CREATE OR REPLACE FUNCTION insert_training_record(
     p_userid INT,
