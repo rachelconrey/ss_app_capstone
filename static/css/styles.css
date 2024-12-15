@@ -126,3 +126,38 @@ shiny-data-frame .shiny-data-grid.shiny-data-grid-table > table > tbody > tr[ari
 shiny-data-frame .shiny-data-grid.shiny-data-grid-grid > table > tbody > tr:hover {
     background-color: #9BE979 !important;
 }
+
+/* Remove spinner animation */
+.load-container {
+    display: none !important;
+}
+
+.shiny-spinner-hidden {
+    display: none !important;
+}
+
+.shiny-busy { 
+    display: none !important;
+}
+
+/* Remove spinner background */
+.loading {
+    display: none !important;
+}
+
+.recalculating {
+    display: none !important;
+}
+
+/* Hide any Shiny loading elements */
+#shiny-notification-panel {
+    display: none !important;
+}
+
+.shiny-notification-panel {
+    display: none !important;
+}
+
+.shiny-notification {
+    display: none !important;
+}
