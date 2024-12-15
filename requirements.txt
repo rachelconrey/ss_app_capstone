@@ -20,6 +20,7 @@ numpy==2.2.0
 orjson==3.10.12
 packaging==24.2
 pandas==2.2.3
+passlib==1.7.4
 pillow==11.0.0
 prompt-toolkit==3.0.36
 psycopg==3.2.3

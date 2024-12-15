@@ -4,6 +4,13 @@ from shiny import App, render, ui
 def create_login_page():
     """Create the login page UI."""
     return ui.div(
+        # Hidden authentication state input using HTML
+        ui.tags.input(
+            id="authenticated",
+            type="hidden",
+            value="false"
+        ),
+        
         ui.div(
             ui.card(
                 ui.card_header(

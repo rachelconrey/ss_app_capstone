@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 import logging
 from logging.handlers import RotatingFileHandler
-from shiny import App, ui, reactive
+from shiny import App, ui, reactive, render
 import sys
 from dotenv import load_dotenv
 import traceback
@@ -87,19 +87,10 @@ def create_main_content():
         )
     )
 
-# Create the base UI with conditional visibility
 app_ui = ui.page_fluid(
     ui.include_css("static/css/styles.css"),
-    ui.panel_conditional(
-        "!input.is_authenticated",
-        create_login_page()
-    ),
-    ui.panel_conditional(
-        "input.is_authenticated",
-        create_main_content()
-    )
+    ui.output_ui("page_content")
 )
-
 def update_training_statuses():
     """Update training due dates, status, and eligibility."""
     engine = DatabaseConfig.get_db_engine()
@@ -171,14 +162,27 @@ def server(input, output, session):
     # Server components will only be initialized after authentication
     initialized = reactive.Value(False)
     
-    @reactive.Effect
-    def _():
-        """Initialize other server components after authentication."""
-        if login_data["is_authenticated"].get() and not initialized.get():
-            server_personal_data(input, output, session)
-            server_dashboard_data(input, output, session)
-            server_training_data(input, output, session)
-            initialized.set(True)
+    @output
+    @render.ui
+    def page_content():
+        """Render either login page or main content based on authentication state."""
+        if not login_data["is_authenticated"].get():
+            return create_login_page()
+        else:
+            if not initialized.get():
+                try:
+                    server_personal_data(input, output, session)
+                    server_dashboard_data(input, output, session)
+                    server_training_data(input, output, session)
+                    initialized.set(True)
+                except Exception as e:
+                    logging.error(f"Error initializing server components: {str(e)}")
+                    login_data["is_authenticated"].set(False)
+                    return create_login_page()
+            return create_main_content()
+
+    # Return the authenticated state for use in other components
+    return login_data["is_authenticated"]
 
 # Initialize app
 www_dir = Path(__file__).parent / "www"

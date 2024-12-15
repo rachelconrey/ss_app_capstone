@@ -3,6 +3,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from typing import Dict, Any, List, Tuple
 import logging
 from libs.database.db_engine import DatabaseConfig
+from passlib.hash import pbkdf2_sha256
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,9 @@ class CRUDManager:
 
         # Generate userid from name
         userid = f"{member_data['first_name'][0].lower()}{member_data['last_name'].lower()}"
+        
+        default_password = "default_password"  # You might want to generate this randomly
+        hashed_password = pbkdf2_sha256.hash(default_password)
         
         queries = [
             # Create login record
