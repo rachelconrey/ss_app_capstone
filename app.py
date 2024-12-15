@@ -19,6 +19,7 @@ from apps.training.ui import create_training_panel
 # Import server components
 from apps.member.personal_data import server_personal_data
 from apps.dashboard.dashboard import server_dashboard_data
+from apps.training.training_data import server_training_data
 
 class ApplicationConfig:
     
@@ -164,6 +165,7 @@ def server(input, output, session):
     
     server_personal_data(input, output, session)
     server_dashboard_data(input, output, session)
+    server_training_data(input, output, session)
     
     
 www_dir = Path(__file__).parent / "www"

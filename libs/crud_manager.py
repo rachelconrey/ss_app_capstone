@@ -134,87 +134,112 @@ class CRUDManager:
         result = CRUDManager._execute_transaction(queries)
         return bool(result.scalar())
 
-    # Training Operations
     @staticmethod
     def add_training(training_data: Dict[str, Any]) -> int:
         """Add training record with automatic status updates."""
         required_fields = ['userid', 'courseid', 'completion_date']
         CRUDManager._validate_data(training_data, required_fields)
 
-        queries = [
-            # Insert training record
-            ("""
-                INSERT INTO training_status_data (
-                    userid, courseid, completion_date, created_at, updated_at
-                ) VALUES (
-                    :userid, :courseid, :completion_date,
-                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                ) RETURNING id
-            """, training_data),
-            
-            # Update due date
-            ("""
-                UPDATE training_status_data t
-                SET due_date = t.completion_date + 
-                    (SELECT frequency_in_months FROM training_course_data c 
-                     WHERE c.courseid = t.courseid) * INTERVAL '1 month'
-                WHERE id = currval('training_status_data_id_seq')
-            """, {}),
-            
-            # Update status
-            ("""
-                UPDATE training_status_data
-                SET status = CASE 
-                    WHEN due_date >= CURRENT_DATE THEN 'Current'
-                    ELSE 'Overdue'
-                END
-                WHERE id = currval('training_status_data_id_seq')
-            """, {})
-        ]
-        
-        result = CRUDManager._execute_transaction(queries)
-        CRUDManager._update_member_eligibility(training_data['userid'])
-        return result.scalar()
+        engine = DatabaseConfig.get_db_engine()
+        try:
+            with engine.begin() as conn:
+                # Insert training record and get ID
+                result = conn.execute(
+                    text("""
+                        INSERT INTO training_status_data (
+                            userid, courseid, completion_date
+                        ) VALUES (
+                            :userid, :courseid, :completion_date
+                        ) RETURNING id
+                    """),
+                    training_data
+                )
+                new_id = result.scalar_one()
+                
+                # Update due date
+                conn.execute(
+                    text("""
+                        UPDATE training_status_data t
+                        SET due_date = (t.completion_date::date + 
+                            (SELECT frequency_in_months FROM training_course_data c 
+                            WHERE c.courseid = t.courseid) * INTERVAL '1 month')::date
+                        WHERE id = :id
+                    """),
+                    {'id': new_id}
+                )
+                
+                # Update status
+                conn.execute(
+                    text("""
+                        UPDATE training_status_data
+                        SET status = CASE 
+                            WHEN CAST(due_date AS date) >= CURRENT_DATE THEN 'Current'
+                            ELSE 'Overdue'
+                        END
+                        WHERE id = :id
+                    """),
+                    {'id': new_id}
+                )
+                
+                CRUDManager._update_member_eligibility(training_data['userid'])
+                return new_id
+                
+        except Exception as e:
+            logger.error(f"Database error in add_training: {str(e)}")
+            raise
 
     @staticmethod
     def update_training(training_id: int, training_data: Dict[str, Any]) -> bool:
         """Update training record with automatic status updates."""
-        queries = [
-            # Update training record
-            ("""
-                UPDATE training_status_data
-                SET completion_date = :completion_date,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id = :id
-                RETURNING userid
-            """, {**training_data, 'id': training_id}),
-            
-            # Update due date
-            ("""
-                UPDATE training_status_data t
-                SET due_date = t.completion_date + 
-                    (SELECT frequency_in_months FROM training_course_data c 
-                     WHERE c.courseid = t.courseid) * INTERVAL '1 month'
-                WHERE id = :id
-            """, {'id': training_id}),
-            
-            # Update status
-            ("""
-                UPDATE training_status_data
-                SET status = CASE 
-                    WHEN due_date >= CURRENT_DATE THEN 'Current'
-                    ELSE 'Overdue'
-                END
-                WHERE id = :id
-                RETURNING userid
-            """, {'id': training_id})
-        ]
-        
-        result = CRUDManager._execute_transaction(queries)
-        userid = result.scalar()
-        if userid:
-            CRUDManager._update_member_eligibility(userid)
-        return bool(userid)
+        engine = DatabaseConfig.get_db_engine()
+        try:
+            with engine.begin() as conn:
+                # Update training record and get userid
+                result = conn.execute(
+                    text("""
+                        UPDATE training_status_data
+                        SET completion_date = :completion_date
+                        WHERE id = :id
+                        RETURNING userid
+                    """),
+                    {**training_data, 'id': training_id}
+                )
+                userid = result.scalar_one_or_none()
+                
+                if not userid:
+                    return False
+                
+                # Update due date
+                conn.execute(
+                    text("""
+                        UPDATE training_status_data t
+                        SET due_date = (t.completion_date::date + 
+                            (SELECT frequency_in_months FROM training_course_data c 
+                            WHERE c.courseid = t.courseid) * INTERVAL '1 month')::date
+                        WHERE id = :id
+                    """),
+                    {'id': training_id}
+                )
+                
+                # Update status
+                conn.execute(
+                    text("""
+                        UPDATE training_status_data
+                        SET status = CASE 
+                            WHEN CAST(due_date AS date) >= CURRENT_DATE THEN 'Current'
+                            ELSE 'Overdue'
+                        END
+                        WHERE id = :id
+                    """),
+                    {'id': training_id}
+                )
+                
+                CRUDManager._update_member_eligibility(userid)
+                return True
+                
+        except Exception as e:
+            logger.error(f"Database error in update_training: {str(e)}")
+            raise
 
     @staticmethod
     def delete_training(training_id: int) -> bool:
@@ -240,21 +265,30 @@ class CRUDManager:
         return bool(result.scalar())
 
     @staticmethod
-    def _update_member_eligibility(userid: int) -> None:
+    def _update_member_eligibility(userid: str) -> None:
         """Update member eligibility based on training status."""
-        query = ("""
-            UPDATE personal_data
-            SET eligibility = CASE 
-                WHEN EXISTS (
-                    SELECT 1 FROM training_status_data 
-                    WHERE userid = :userid AND status = 'Overdue'
-                ) OR NOT EXISTS (
-                    SELECT 1 FROM training_status_data 
-                    WHERE userid = :userid
-                ) THEN 'Ineligible'
-                ELSE 'Eligible'
-            END
-            WHERE userid = :userid
-        """, {'userid': userid})
-        
-        CRUDManager._execute_transaction([query])
+        engine = DatabaseConfig.get_db_engine()
+        try:
+            with engine.begin() as conn:
+                conn.execute(
+                    text("""
+                        UPDATE personal_data
+                        SET eligibility = CASE 
+                            WHEN EXISTS (
+                                SELECT 1 FROM training_status_data 
+                                WHERE userid = :userid 
+                                AND status = 'Overdue'
+                            ) THEN 'Ineligible'
+                            WHEN NOT EXISTS (
+                                SELECT 1 FROM training_status_data 
+                                WHERE userid = :userid
+                            ) THEN 'Ineligible'
+                            ELSE 'Eligible'
+                        END
+                        WHERE userid = :userid
+                    """),
+                    {'userid': userid}
+                )
+        except Exception as e:
+            logger.error(f"Database error in update_member_eligibility: {str(e)}")
+            raise
