@@ -182,7 +182,6 @@ def server_personal_data(input, output, session):
                         type="success",
                         duration=3000
                     )
-                    # Need to explicitly trigger a refresh
                     fetch_member_data()
                 else:
                     ui.notification_show(
@@ -213,6 +212,8 @@ def server_personal_data(input, output, session):
         """Handle deleting member."""
         try:
             member_id = selected_member.get()
+            logger.info(f"Delete requested for member_id: {member_id}")
+            
             if not member_id:
                 ui.notification_show(
                     "Please select a member to delete",
@@ -221,25 +222,40 @@ def server_personal_data(input, output, session):
                 )
                 return
 
+            # Log the current data before deletion
+            df = member_data.get()
+            if not df.empty:
+                member_info = df[df['id'] == member_id]
+                if not member_info.empty:
+                    logger.info(f"Attempting to delete member: ID={member_id}, "
+                            f"Data={member_info.iloc[0].to_dict()}")
+                else:
+                    logger.error(f"Member ID {member_id} not found in current data")
+
             success = CRUDManager.delete_member(member_id)
             
             if success:
+                logger.info(f"Successfully deleted member {member_id}")
+                # Clear selection first
+                selected_member.set(None)
+                # Show success message
                 ui.notification_show(
                     "Member deleted successfully",
                     type="success",
                     duration=3000
                 )
-                fetch_member_data()  # Refresh the table
-                selected_member.set(None)  # Clear selection
+                # Finally refresh the data
+                fetch_member_data()
             else:
+                logger.error(f"Failed to delete member {member_id}")
                 ui.notification_show(
-                    "Failed to delete member",
+                    "Failed to delete member - please try again",
                     type="error",
                     duration=5000
                 )
                 
         except Exception as e:
-            logger.error(f"Error deleting member: {str(e)}")
+            logger.error(f"Error in handle_delete_member: {str(e)}")
             ui.notification_show(
                 f"Error deleting member: {str(e)}",
                 type="error",
@@ -305,6 +321,10 @@ def server_personal_data(input, output, session):
                 ui.update_text("edit_ice_phone", value=selected_row['ice_phone_number'])
         else:
             selected_member.set(None)
+            # Clear the edit form when nothing is selected
+            for field in ['first_name', 'last_name', 'email', 'phone', 
+                         'ice_first_name', 'ice_last_name', 'ice_phone']:
+                ui.update_text(f"edit_{field}", value="")
 
     # Add reactive effect for search/filter changes
     @reactive.Effect

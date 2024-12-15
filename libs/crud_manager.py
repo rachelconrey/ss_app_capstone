@@ -121,34 +121,79 @@ class CRUDManager:
     @staticmethod
     def delete_member(member_id: int) -> bool:
         """Delete member and associated records in correct order."""
-        queries = [
-            # Get userid first
-            ("""
-                SELECT userid FROM personal_data WHERE id = :id
-            """, {'id': member_id}),
-            
-            # Delete training records
-            ("""
-                DELETE FROM training_status_data
-                WHERE userid = (SELECT userid FROM personal_data WHERE id = :id)
-            """, {'id': member_id}),
-            
-            # Delete login data
-            ("""
-                DELETE FROM login_data
-                WHERE userid = (SELECT userid FROM personal_data WHERE id = :id)
-            """, {'id': member_id}),
-            
-            # Delete personal data
-            ("""
-                DELETE FROM personal_data
-                WHERE id = :id
-                RETURNING true
-            """, {'id': member_id})
-        ]
-        
-        result = CRUDManager._execute_transaction(queries)
-        return bool(result.scalar())
+        engine = DatabaseConfig.get_db_engine()
+        try:
+            with engine.begin() as conn:
+                logger.info(f"Starting deletion process for member_id: {member_id}")
+                
+                # First get and verify the userid
+                get_userid_query = text("""
+                    SELECT userid, first_name, last_name 
+                    FROM personal_data 
+                    WHERE id = :id
+                """)
+                result = conn.execute(get_userid_query, {'id': member_id})
+                row = result.fetchone()
+                
+                if not row:
+                    logger.error(f"No member found with id {member_id}")
+                    return False
+                
+                userid = row[0]
+                logger.info(f"Found userid {userid} for member_id {member_id}")
+                
+                # Delete in correct order - reverse of creation
+                # First delete dependent training records
+                training_result = conn.execute(
+                    text("""
+                        DELETE FROM training_status_data
+                        WHERE userid = :userid
+                        RETURNING id
+                    """),
+                    {'userid': userid}
+                )
+                deleted_training = training_result.fetchall()
+                logger.info(f"Deleted {len(deleted_training)} training records for userid {userid}")
+                
+                # Then delete personal data
+                personal_result = conn.execute(
+                    text("""
+                        DELETE FROM personal_data
+                        WHERE id = :id
+                        RETURNING id
+                    """),
+                    {'id': member_id}
+                )
+                
+                if not personal_result.scalar():
+                    logger.error(f"Failed to delete personal data for member {member_id}")
+                    return False
+                
+                logger.info(f"Successfully deleted personal data for member {member_id}")
+                
+                # Finally delete login data
+                login_result = conn.execute(
+                    text("""
+                        DELETE FROM login_data
+                        WHERE userid = :userid
+                        RETURNING userid
+                    """),
+                    {'userid': userid}
+                )
+                
+                if login_result.fetchone():
+                    logger.info(f"Successfully deleted login data for userid {userid}")
+                    return True
+                else:
+                    logger.error(f"Failed to delete login data for userid {userid}")
+                    return False
+                    
+        except SQLAlchemyError as e:
+            logger.error(f"Database error in delete_member: {str(e)}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error in delete_member: {str(e)}")
+            raise
 
     @staticmethod
     def add_training(training_data: Dict[str, Any]) -> int:
@@ -259,14 +304,7 @@ class CRUDManager:
 
     @staticmethod
     def delete_training(training_id: int) -> bool:
-        """Delete training record and update member eligibility.
-        
-        Args:
-            training_id: ID of the training record to delete
-            
-        Returns:
-            bool: True if deletion was successful, False otherwise
-        """
+        """Delete training record and update member eligibility."""
         engine = DatabaseConfig.get_db_engine()
         try:
             with engine.begin() as conn:
