@@ -65,63 +65,54 @@ def server_login(input, output, session):
     # Reactive values
     is_authenticated = reactive.Value(False)
     message = reactive.Value("")
+    
+    # Add a reactive value to track login state changes
+    login_attempt = reactive.Value(0)
 
     @reactive.Effect
     @reactive.event(input.login_button)
     def handle_login():
         """Handle login button click."""
-        username = input.username()
-        password = input.password()
-        
-        if not username or not password:
-            message.set("Please enter both username and password")
-            return
+        try:
+            username = input.username()
+            password = input.password()
             
-        if validate_login(username, password):
-            is_authenticated.set(True)
-            message.set("Login successful!")
-            logger.info(f"Successful login for user: {username}")
-        else:
-            message.set("Invalid username or password")
-            is_authenticated.set(False)
-            logger.warning(f"Failed login attempt for user: {username}")
-
-    @output
-    @render.text
-    def login_message():
-        """Render login message."""
-        return message.get()
-
-    return {
-        "is_authenticated": is_authenticated,
-        "message": message
-    }
-
-    @reactive.Effect
-    @reactive.event(input.login_button)
-    def handle_login():
-        """Handle login button click."""
-        username = input.username()
-        password = input.password()
-        
-        if not username or not password:
-            message.set("Please enter both username and password")
-            return
+            if not username or not password:
+                message.set("Please enter both username and password")
+                return
+                
+            # Update login attempt counter to trigger reactivity
+            login_attempt.set(login_attempt.get() + 1)
             
-        if validate_login(username, password):
-            is_authenticated.set(True)
-            message.set("Login successful!")
-        else:
-            message.set("Invalid username or password")
+            if validate_login(username, password):
+                message.set("Login successful!")
+                is_authenticated.set(True)
+                logger.info(f"Successful login for user: {username}")
+                ui.notification_show(
+                    "Login successful! Loading dashboard...",
+                    type="message",
+                    duration=2
+                )
+            else:
+                message.set("Invalid username or password")
+                is_authenticated.set(False)
+                logger.warning(f"Failed login attempt for user: {username}")
+                
+        except Exception as e:
+            logger.error(f"Error during login: {str(e)}")
+            message.set("An error occurred during login")
             is_authenticated.set(False)
 
     @output
     @render.text
     def login_message():
         """Render login message."""
+        # Depend on login_attempt to ensure proper reactivity
+        login_attempt.get()
         return message.get()
 
     return {
         "is_authenticated": is_authenticated,
-        "message": message
+        "message": message,
+        "login_attempt": login_attempt
     }

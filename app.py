@@ -166,20 +166,34 @@ def server(input, output, session):
     @render.ui
     def page_content():
         """Render either login page or main content based on authentication state."""
+        # Add dependency on login attempts
+        login_data["login_attempt"].get()
+        
         if not login_data["is_authenticated"].get():
             return create_login_page()
-        else:
-            if not initialized.get():
-                try:
+        
+        if not initialized.get():
+            try:
+                # Wrap initialization in try-except
+                with ui.Progress(min=0, max=100) as p:
+                    p.set(message="Initializing dashboard...", value=0)
                     server_personal_data(input, output, session)
+                    p.set(value=33)
                     server_dashboard_data(input, output, session)
+                    p.set(value=66)
                     server_training_data(input, output, session)
-                    initialized.set(True)
-                except Exception as e:
-                    logging.error(f"Error initializing server components: {str(e)}")
-                    login_data["is_authenticated"].set(False)
-                    return create_login_page()
-            return create_main_content()
+                    p.set(value=100)
+                initialized.set(True)
+            except Exception as e:
+                logging.error(f"Error initializing server components: {str(e)}")
+                login_data["is_authenticated"].set(False)
+                ui.notification_show(
+                    "Error loading dashboard. Please try logging in again.",
+                    type="error"
+                )
+                return create_login_page()
+        
+        return create_main_content()
 
     # Return the authenticated state for use in other components
     return login_data["is_authenticated"]
