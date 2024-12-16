@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 import traceback
 from libs.database.db_engine import DatabaseConfig
 from sqlalchemy.sql import text
-import json
 
 # Import ui components
 from apps.dashboard.ui import create_dashboard_panel
@@ -71,10 +70,7 @@ class LoggingConfig:
 
 def create_main_content():
     """Create the main application content."""
-    return ui.div(
-        # Add a hidden input to store the current page
-        ui.input_text("current_page", "", type="hidden"),
-        
+    return ui.div(        
         ui.navset_bar(
             create_dashboard_panel(),
             create_member_panel(),
@@ -88,33 +84,7 @@ def create_main_content():
             ),
             bg="light",
             inverse=True,
-        ),
-        
-        # Add custom JavaScript for page persistence
-        ui.tags.script("""
-            // Store current page in localStorage when changed
-            $(document).on('shiny:inputchanged', function(event) {
-                if (event.name === 'selected_navset_bar') {
-                    localStorage.setItem('currentPage', event.value);
-                    Shiny.setInputValue('current_page', event.value);
-                }
-            });
-            
-            // Restore page on load
-            $(document).ready(function() {
-                var savedPage = localStorage.getItem('currentPage');
-                if (savedPage) {
-                    Shiny.setInputValue('selected_navset_bar', savedPage);
-                    Shiny.setInputValue('current_page', savedPage);
-                }
-            });
-            
-            // Handle browser refresh
-            window.onbeforeunload = function() {
-                var currentPage = $('#selected_navset_bar').val();
-                localStorage.setItem('currentPage', currentPage);
-            };
-        """)
+        )
     )
 
 # Enhanced app UI with responsive design
@@ -234,69 +204,21 @@ def server(input, output, session):
     # Initialize login server
     login_data = server_login(input, output, session)
     
-    # Server components will only be initialized after authentication
-    initialized = reactive.Value(False)
-    
-    # Store current page state
-    current_page = reactive.Value(None)
-    
-    @reactive.Effect
-    @reactive.event(input.current_page)
-    def _handle_page_change():
-        """Handle page changes and store state."""
-        page = input.current_page()
-        if page:
-            current_page.set(page)
+    # Initialize other server components
+    server_personal_data(input, output, session)
+    server_dashboard_data(input, output, session)
+    server_training_data(input, output, session)
     
     @output
     @render.ui
     def page_content():
         """Render either login page or main content based on authentication state."""
-        # Add dependency on login attempts
-        login_data["login_attempt"].get()
+        login_data["login_attempt"].get()  # Ensure reactivity to login attempts
         
         if not login_data["is_authenticated"].get():
             return create_login_page()
         
-        if not initialized.get():
-            try:
-                # Show loading spinner during initialization
-                ui.notification_show(
-                    "Loading dashboard...",
-                    type="default",
-                    duration=None,
-                    id="loading-notification"
-                )
-                
-                with ui.Progress(min=0, max=100) as p:
-                    p.set(message="Initializing dashboard...", value=0)
-                    server_personal_data(input, output, session)
-                    p.set(value=33)
-                    server_dashboard_data(input, output, session)
-                    p.set(value=66)
-                    server_training_data(input, output, session)
-                    p.set(value=100)
-                
-                initialized.set(True)
-                ui.notification_hide(id="loading-notification")
-                
-            except Exception as e:
-                logging.error(f"Error initializing server components: {str(e)}")
-                login_data["is_authenticated"].set(False)
-                ui.notification_show(
-                    "Error loading dashboard. Please try logging in again.",
-                    type="error"
-                )
-                return create_login_page()
-        
-        # Restore previous page if available
-        if current_page.get():
-            ui.update_navs("selected_navset_bar", selected=current_page.get())
-        
         return create_main_content()
-
-    # Return the authenticated state for use in other components
-    return login_data["is_authenticated"]
 
 # Initialize app
 www_dir = Path(__file__).parent / "www"

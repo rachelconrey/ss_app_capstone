@@ -38,28 +38,14 @@ class PersonalDataManager:
                 df = pd.read_sql_query(text(PersonalDataManager.MEMBER_QUERY), conn)
             
             if df.empty:
-                logger.info("No member records found in database")
                 return pd.DataFrame()
-                
-            # Clean data
+                    
             df = PersonalDataManager._clean_member_data(df)
             
-            logger.info(f"Successfully fetched {len(df)} member records")
             return df
-                
-        except Exception as e:
-            if "connection" in str(e).lower():
-                logger.error(f"Database connection error: {str(e)}")
-                raise Exception("Unable to connect to database")
-            elif "permission" in str(e).lower():
-                logger.error(f"Database permission error: {str(e)}")
-                raise Exception("Database access permission denied")
-            elif "sql syntax" in str(e).lower():
-                logger.error(f"SQL query error: {str(e)}")
-                raise Exception("Error in database query")
-            else:
-                logger.error(f"Unexpected error fetching member data: {str(e)}")
-                return pd.DataFrame()
+                    
+        except Exception:
+            return pd.DataFrame()
 
     @staticmethod
     def _clean_member_data(df: pd.DataFrame) -> pd.DataFrame:
@@ -94,10 +80,9 @@ def server_personal_data(input, output, session):
             data = PersonalDataManager.get_member_data()
             member_data.set(data)
             apply_filters()  # Apply filters after fetching new data
-            logger.info("Successfully fetched member data")
-        except Exception as e:
-            logger.error(f"Error fetching member data: {str(e)}")
-            
+        except Exception:
+            pass
+                
     # Add reactive effect for refresh button
     @reactive.Effect
     @reactive.event(input.refresh_data)
