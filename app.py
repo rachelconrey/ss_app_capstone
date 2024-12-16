@@ -146,7 +146,7 @@ def update_training_statuses():
     
     try:
         with engine.connect() as conn:
-            # Update due dates
+            # Update due dates based on completion date and frequency
             due_date_query = text("""
                 UPDATE training_status_data t
                 SET due_date = t.completion_date + (c.frequency_in_months * INTERVAL '1 month')
@@ -155,38 +155,48 @@ def update_training_statuses():
                 AND t.completion_date IS NOT NULL
             """)
             
-            # Update training status
+            # Update training status based on due dates
             status_query = text("""
                 UPDATE training_status_data
                 SET status = 
                     CASE 
-                        WHEN completion_date IS NULL THEN NULL
-                        WHEN CAST(due_date AS DATE) >= CURRENT_DATE THEN 'Current'
+                        WHEN completion_date IS NULL THEN 'Missing'
+                        WHEN CURRENT_DATE <= due_date THEN 'Current'
                         ELSE 'Overdue'
                     END
-                WHERE completion_date IS NOT NULL
             """)
             
-            # Update eligibility query
+            # Update eligibility - a member is eligible only if they have completed
+            # all required courses and none are overdue
             eligibility_query = text("""
+                WITH required_courses AS (
+                    SELECT COUNT(*) as total_required
+                    FROM training_course_data
+                ),
+                member_status AS (
+                    SELECT 
+                        p.userid,
+                        COUNT(t.courseid) as completed_courses,
+                        SUM(CASE WHEN t.status = 'Overdue' THEN 1 ELSE 0 END) as overdue_courses,
+                        SUM(CASE WHEN t.status = 'Missing' THEN 1 ELSE 0 END) as missing_courses
+                    FROM personal_data p
+                    CROSS JOIN training_course_data c
+                    LEFT JOIN training_status_data t 
+                        ON p.userid = t.userid 
+                        AND c.courseid = t.courseid
+                    GROUP BY p.userid
+                )
                 UPDATE personal_data p
                 SET eligibility = 
                     CASE 
-                        WHEN NOT EXISTS (
-                            SELECT 1 
-                            FROM training_course_data c
-                            WHERE NOT EXISTS (
-                                SELECT 1 
-                                FROM training_status_data t
-                                WHERE t.userid = p.userid 
-                                AND t.courseid = c.courseid
-                                AND t.status = 'Current'
-                            )
-                        ) THEN 'Eligible'
-                        ELSE 'Ineligible'
+                        WHEN ms.overdue_courses > 0 OR ms.missing_courses > 0 THEN 'Ineligible'
+                        ELSE 'Eligible'
                     END
+                FROM member_status ms
+                WHERE p.userid = ms.userid
             """)
             
+            # Execute updates in order
             conn.execute(due_date_query)
             conn.execute(status_query)
             conn.execute(eligibility_query)

@@ -16,6 +16,7 @@ from datetime import datetime, timedelta
 # Set up logging
 logger = logging.getLogger(__name__)
 
+# Global reactive values
 course_data = reactive.Value(pd.DataFrame())
 
 def handle_db_errors(func):
@@ -82,22 +83,22 @@ class DashboardMetrics:
         try:
             query = text("""
                 WITH member_count AS (
-                SELECT COUNT(DISTINCT userid) as total_members
-                FROM personal_data
+                    SELECT COUNT(DISTINCT userid) as total_members
+                    FROM personal_data
                 ),
                 course_completions AS (
-                SELECT
-                t.courseid,
-                COUNT(DISTINCT t.userid) as completed_count
-                FROM training_status_data t
-                WHERE t.completion_date IS NOT NULL
-                GROUP BY t.courseid
+                    SELECT
+                        t.courseid,
+                        COUNT(DISTINCT t.userid) as completed_count
+                    FROM training_status_data t
+                    WHERE t.completion_date IS NOT NULL
+                    GROUP BY t.courseid
                 )
                 SELECT
-                c.courseid,
-                COALESCE(cc.completed_count, 0) as completed_count,
-                m.total_members,
-                ROUND((COALESCE(cc.completed_count, 0)::NUMERIC / m.total_members * 100)::NUMERIC, 2) as completion_percentage
+                    c.courseid,
+                    COALESCE(cc.completed_count, 0) as completed_count,
+                    m.total_members,
+                    ROUND((COALESCE(cc.completed_count, 0)::NUMERIC / m.total_members * 100)::NUMERIC, 2) as completion_percentage
                 FROM training_course_data c
                 CROSS JOIN member_count m
                 LEFT JOIN course_completions cc ON c.courseid = cc.courseid
@@ -148,6 +149,32 @@ def server_dashboard_data(input, output, session):
                 type="error"
             )
 
+    @reactive.Effect
+    @reactive.event(input.refresh)
+    def _refresh_dashboard():
+        """Handle dashboard refresh."""
+        try:
+            with ui.Progress(min=0, max=100) as p:
+                p.set(message="Updating training statuses...", value=0)
+                update_training_statuses()  # Update statuses
+                p.set(message="Refreshing metrics...", value=50)
+                update_metrics()  # Refresh metrics
+                p.set(message="Loading course data...", value=75)
+                _load_course_data()  # Refresh course data
+                p.set(value=100)
+            ui.notification_show(
+                "Dashboard refreshed successfully",
+                type="success",
+                duration=3000
+            )
+        except Exception as e:
+            logger.error(f"Error refreshing dashboard: {str(e)}")
+            ui.notification_show(
+                "Error refreshing dashboard",
+                type="error",
+                duration=5000
+            )
+
     @output
     @render.text
     def total_members() -> str:
@@ -170,10 +197,8 @@ def server_dashboard_data(input, output, session):
     @render.plot(alt="A bar chart showing course completion percentages")
     def plot():
         """Render the course completion plot."""
-        # Clear any existing plots
-        plt.clf()
+        plt.clf()  # Clear any existing plots
         
-        # Get the course data
         data = course_data.get()
         
         if data.empty:
@@ -183,30 +208,25 @@ def server_dashboard_data(input, output, session):
                    verticalalignment='center')
             return fig
         
-        # Set the style
         sns.set_style("whitegrid")
-        
-        # Create figure and axes with specific size
         fig, ax = plt.subplots(figsize=(12, 6))
         
-        # Create bar plot using seaborn
-        bars = sns.barplot(data=data, 
-                          x='courseid', 
-                          y='completion_percentage',
-                          ax=ax,
-                          color='#7BD953')
+        bars = sns.barplot(
+            data=data, 
+            x='courseid', 
+            y='completion_percentage',
+            ax=ax,
+            color='#7BD953'
+        )
         
         ax.set_xlabel("Course ID", fontsize=12)
         ax.set_ylabel("Completion Percentage (%)", fontsize=12)
         
-        # Add percentage labels on top of bars
         for container in ax.containers:
             ax.bar_label(container, fmt='%.1f%%', padding=3)
         
         plt.xticks(rotation=45, ha='right')
-        
         ax.set_ylim(0, 100)
-        
         plt.tight_layout()
         
         return fig
@@ -227,18 +247,9 @@ def server_dashboard_data(input, output, session):
                 f"Highest: {highest_completion:.1f}% | "
                 f"Lowest: {lowest_completion:.1f}%")
 
-    @output
-    @render.text
-    def training_summary():
-        """Display training summary statistics."""
-        data = course_data.get()
-        if data.empty:
-            return "No training data available"
-        
-        avg_completion = data['completion_percentage'].mean()
-        highest_completion = data['completion_percentage'].max()
-        lowest_completion = data['completion_percentage'].min()
-        
-        return (f"Average completion rate: {avg_completion:.1f}% | "
-                f"Highest: {highest_completion:.1f}% | "
-                f"Lowest: {lowest_completion:.1f}%")
+    return {
+        'metrics': metrics,
+        'course_data': course_data,
+        'update_metrics': update_metrics,
+        'refresh_dashboard': _refresh_dashboard
+    }

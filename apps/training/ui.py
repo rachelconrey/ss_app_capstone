@@ -15,7 +15,7 @@ class TrainingComponents:
                         ui.input_select(
                             "search_course",
                             "Search by course",
-                            choices={"All": "All"}  # Start with just "All", rest populated dynamically
+                            choices={"All": "All"}
                         ),
                         class_="mb-2"
                     )

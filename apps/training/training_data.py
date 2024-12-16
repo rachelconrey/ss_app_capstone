@@ -8,6 +8,7 @@ from libs.crud_manager import CRUDManager
 
 logger = logging.getLogger(__name__)
 
+
 def server_training_data(input, output, session):
     """Server logic for training data with CRUD operations."""
     
@@ -15,7 +16,12 @@ def server_training_data(input, output, session):
     selected_record = reactive.Value(None)
     training_data = reactive.Value(pd.DataFrame())
     filtered_data = reactive.Value(pd.DataFrame())
-    
+    courses = reactive.Value([])
+    course_details = reactive.Value({})
+
+    # Create a trigger for initialization
+    init_trigger = reactive.Value(0)
+
     def load_course_choices():
         """Load available courses for dropdown."""
         engine = DatabaseConfig.get_db_engine()
@@ -24,6 +30,10 @@ def server_training_data(input, output, session):
                 query = text("SELECT courseid FROM training_course_data ORDER BY courseid")
                 result = conn.execute(query)
                 courses = [row[0] for row in result]
+                ui.update_select(
+                    "new_training_course",
+                    choices={"": "Select a course"} | {c: c for c in courses}
+                )
                 choices = {"All": "All"} | {c: c for c in courses}
                 
                 # Update both dropdowns
@@ -36,6 +46,21 @@ def server_training_data(input, output, session):
                 "Error loading courses",
                 type="error"
             )
+
+    @reactive.Effect
+    def _initialize():
+        """Load initial data and choices."""
+        logger.info("Initializing training data...")
+        fetch_training_data()
+        load_course_choices()
+        load_user_choices() 
+
+    @reactive.Effect
+    def _update_user_choices():
+        """Update user choices when course selection changes."""
+        course = input.new_training_course()
+        if course:
+            load_user_choices(course)
             
     def load_user_choices(course=None):
         """Load available users for dropdown."""
@@ -69,6 +94,7 @@ def server_training_data(input, output, session):
                     "new_training_user",
                     choices={"": "Select a user"} | users
                 )
+                logger.info(f"Successfully loaded {len(users)} users")
                 
         except Exception as e:
             logger.error(f"Error loading users: {str(e)}")
@@ -77,23 +103,6 @@ def server_training_data(input, output, session):
                 type="error"
             )
 
-    # Add this Effect to handle course selection changes
-    @reactive.Effect
-    @reactive.event(input.new_training_course)
-    def _handle_course_change():
-        """Update user choices when course selection changes."""
-        selected_course = input.new_training_course()
-        load_user_choices(selected_course)
-
-    # Modify the initialize function to load initial user choices
-    @reactive.Effect
-    def _initialize():
-        """Load initial data and choices."""
-        logger.info("Initializing training data...")
-        fetch_training_data()
-        load_course_choices()
-        load_user_choices() 
-    
     def fetch_training_data():
         """Fetch training data from database."""
         try:
@@ -117,7 +126,7 @@ def server_training_data(input, output, session):
             
             logger.info(f"Fetched {len(df)} training records")
             training_data.set(df)
-            filtered_data.set(df)  # Initialize filtered data with all records
+            filtered_data.set(df)
             
         except Exception as e:
             logger.error(f"Error fetching training data: {str(e)}")
@@ -133,12 +142,11 @@ def server_training_data(input, output, session):
             filtered_data.set(pd.DataFrame())
             return
 
-        # Apply course filter
+        # Apply filters
         course_filter = input.search_course()
         if course_filter and course_filter != "All":
             df = df[df['courseid'] == course_filter]
 
-        # Apply status filter
         status_filter = input.status_filter_training()
         if status_filter and status_filter != "All":
             df = df[df['status'] == status_filter]
@@ -146,13 +154,18 @@ def server_training_data(input, output, session):
         filtered_data.set(df)
         logger.info(f"Applied filters: {len(df)} records after filtering")
 
-    # Initial data load
     @reactive.Effect
-    def _initialize():
-        """Load initial data and course choices."""
-        logger.info("Initializing training data...")
-        fetch_training_data()
+    @reactive.event(input.refresh_data)
+    def _handle_refresh():
+        """Handle refresh button click."""
         load_course_choices()
+        load_user_choices()
+        fetch_training_data()
+
+    def _handle_course_change():
+        """Update user choices when course selection changes."""
+        selected_course = input.new_training_course()
+        load_user_choices(selected_course)
 
     @reactive.Effect
     @reactive.event(input.search_course, input.status_filter_training)
@@ -176,13 +189,11 @@ def server_training_data(input, output, session):
             df['completion_date'] = pd.to_datetime(df['completion_date']).dt.strftime('%Y-%m-%d')
             df['due_date'] = pd.to_datetime(df['due_date']).dt.strftime('%Y-%m-%d')
             
-            # Create display columns
             display_columns = [
                 'first_name', 'last_name', 'courseid', 
                 'completion_date', 'due_date', 'status'
             ]
             
-            # Rename columns for display
             column_labels = {
                 'first_name': 'First Name',
                 'last_name': 'Last Name',
@@ -208,8 +219,6 @@ def server_training_data(input, output, session):
         except Exception as e:
             logger.error(f"Error rendering training table: {str(e)}")
             return None
-
-        # Add these to server_training_data function
 
     @reactive.Effect
     @reactive.event(input.add_training_btn)
@@ -298,14 +307,13 @@ def server_training_data(input, output, session):
             logger.error(f"Error deleting training record: {str(e)}")
             ui.notification_show("Error deleting training record", type="error")
 
-    # Update handle_selection to use filtered_data
     @reactive.Effect
     @reactive.event(input.training_table_selected_rows)
     def handle_selection():
         """Update selected record when table selection changes."""
         selected_indices = input.training_table_selected_rows()
         if selected_indices and len(selected_indices) > 0:
-            df = filtered_data.get()  # Use filtered_data instead of training_data
+            df = filtered_data.get()
             if not df.empty and selected_indices[0] < len(df):
                 record_id = df.iloc[selected_indices[0]]['id']
                 selected_record.set(record_id)
@@ -316,9 +324,16 @@ def server_training_data(input, output, session):
         else:
             selected_record.set(None)
 
-    # Include filtered_data in return values
+    @reactive.Effect
+    def _trigger_init():
+        """Trigger initialization after session starts."""
+        session.on_ended(lambda: None)  # Ensure cleanup
+        init_trigger.set(1)
+        logger.info("Initialization triggered")
+
     return {
         'selected_record': selected_record,
         'training_data': training_data,
-        'filtered_data': filtered_data
+        'filtered_data': filtered_data,
+        'courses': courses,
     }
