@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 import traceback
 from libs.database.db_engine import DatabaseConfig
 from sqlalchemy.sql import text
+import json
 
 # Import ui components
 from apps.dashboard.ui import create_dashboard_panel
@@ -71,6 +72,9 @@ class LoggingConfig:
 def create_main_content():
     """Create the main application content."""
     return ui.div(
+        # Add a hidden input to store the current page
+        ui.input_text("current_page", "", type="hidden"),
+        
         ui.navset_bar(
             create_dashboard_panel(),
             create_member_panel(),
@@ -84,13 +88,88 @@ def create_main_content():
             ),
             bg="light",
             inverse=True,
-        )
+        ),
+        
+        # Add custom JavaScript for page persistence
+        ui.tags.script("""
+            // Store current page in localStorage when changed
+            $(document).on('shiny:inputchanged', function(event) {
+                if (event.name === 'selected_navset_bar') {
+                    localStorage.setItem('currentPage', event.value);
+                    Shiny.setInputValue('current_page', event.value);
+                }
+            });
+            
+            // Restore page on load
+            $(document).ready(function() {
+                var savedPage = localStorage.getItem('currentPage');
+                if (savedPage) {
+                    Shiny.setInputValue('selected_navset_bar', savedPage);
+                    Shiny.setInputValue('current_page', savedPage);
+                }
+            });
+            
+            // Handle browser refresh
+            window.onbeforeunload = function() {
+                var currentPage = $('#selected_navset_bar').val();
+                localStorage.setItem('currentPage', currentPage);
+            };
+        """)
     )
 
+# Enhanced app UI with responsive design
 app_ui = ui.page_fluid(
+    ui.tags.head(
+        ui.tags.meta(
+            name="viewport",
+            content="width=device-width, initial-scale=1.0"
+        ),
+        # Add responsive CSS
+        ui.tags.style("""
+            @media (max-width: 768px) {
+                .shiny-input-container {
+                    width: 100% !important;
+                }
+                .col-sm-4, .col-sm-8 {
+                    width: 100% !important;
+                    padding: 10px;
+                }
+                .nav-tabs {
+                    display: flex;
+                    flex-wrap: wrap;
+                }
+            }
+            /* Add smooth transitions */
+            .tab-pane {
+                transition: all 0.3s ease-in-out;
+            }
+            /* Improve loading states */
+            .shiny-busy {
+                opacity: 0.5;
+                transition: opacity 0.3s;
+            }
+            /* Responsive table */
+            .table-responsive {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+        """)
+    ),
     ui.include_css("static/css/styles.css"),
-    ui.output_ui("page_content")
+    ui.output_ui("page_content"),
+    
+    # Add loading spinner
+    ui.tags.div(
+        ui.tags.div(
+            class_="spinner-border text-primary",
+            role="status",
+            style="display: none;"
+        ),
+        id="loading-spinner",
+        style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 9999;"
+    )
 )
+
 def update_training_statuses():
     """Update training due dates, status, and eligibility."""
     engine = DatabaseConfig.get_db_engine()
@@ -118,18 +197,15 @@ def update_training_statuses():
                 WHERE completion_date IS NOT NULL
             """)
             
-            # Update eligibility - check if member has completed ALL required courses
-            # and none are overdue
+            # Update eligibility query
             eligibility_query = text("""
                 UPDATE personal_data p
                 SET eligibility = 
                     CASE 
                         WHEN NOT EXISTS (
-                            -- Check for any missing or overdue courses
                             SELECT 1 
                             FROM training_course_data c
                             WHERE NOT EXISTS (
-                                -- Look for a valid (current) completion record
                                 SELECT 1 
                                 FROM training_status_data t
                                 WHERE t.userid = p.userid 
@@ -141,7 +217,6 @@ def update_training_statuses():
                     END
             """)
             
-            # Execute queries in order
             conn.execute(due_date_query)
             conn.execute(status_query)
             conn.execute(eligibility_query)
@@ -162,6 +237,17 @@ def server(input, output, session):
     # Server components will only be initialized after authentication
     initialized = reactive.Value(False)
     
+    # Store current page state
+    current_page = reactive.Value(None)
+    
+    @reactive.Effect
+    @reactive.event(input.current_page)
+    def _handle_page_change():
+        """Handle page changes and store state."""
+        page = input.current_page()
+        if page:
+            current_page.set(page)
+    
     @output
     @render.ui
     def page_content():
@@ -174,7 +260,14 @@ def server(input, output, session):
         
         if not initialized.get():
             try:
-                # Wrap initialization in try-except
+                # Show loading spinner during initialization
+                ui.notification_show(
+                    "Loading dashboard...",
+                    type="default",
+                    duration=None,
+                    id="loading-notification"
+                )
+                
                 with ui.Progress(min=0, max=100) as p:
                     p.set(message="Initializing dashboard...", value=0)
                     server_personal_data(input, output, session)
@@ -183,7 +276,10 @@ def server(input, output, session):
                     p.set(value=66)
                     server_training_data(input, output, session)
                     p.set(value=100)
+                
                 initialized.set(True)
+                ui.notification_hide(id="loading-notification")
+                
             except Exception as e:
                 logging.error(f"Error initializing server components: {str(e)}")
                 login_data["is_authenticated"].set(False)
@@ -192,6 +288,10 @@ def server(input, output, session):
                     type="error"
                 )
                 return create_login_page()
+        
+        # Restore previous page if available
+        if current_page.get():
+            ui.update_navs("selected_navset_bar", selected=current_page.get())
         
         return create_main_content()
 
@@ -223,4 +323,3 @@ if __name__ == "__main__":
         logging.critical(f"Critical error starting app: {str(e)}")
         logging.critical(traceback.format_exc())
         sys.exit(1)
-    

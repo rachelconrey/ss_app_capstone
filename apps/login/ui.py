@@ -44,7 +44,8 @@ def create_login_page():
                     ui.div(
                         ui.output_text("login_message", inline=True),
                         class_="mt-2 text-danger"
-                    )
+                    ),
+                style="align-items: center;"   
                 )
             ),
             class_="col-md-4 mx-auto mt-5"

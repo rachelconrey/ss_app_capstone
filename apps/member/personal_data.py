@@ -37,6 +37,10 @@ class PersonalDataManager:
             with engine.connect() as conn:
                 df = pd.read_sql_query(text(PersonalDataManager.MEMBER_QUERY), conn)
             
+            if df.empty:
+                logger.info("No member records found in database")
+                return pd.DataFrame()
+                
             # Clean data
             df = PersonalDataManager._clean_member_data(df)
             
@@ -44,22 +48,37 @@ class PersonalDataManager:
             return df
                 
         except Exception as e:
-            logger.error(f"Error fetching member data: {str(e)}")
-            raise
+            if "connection" in str(e).lower():
+                logger.error(f"Database connection error: {str(e)}")
+                raise Exception("Unable to connect to database")
+            elif "permission" in str(e).lower():
+                logger.error(f"Database permission error: {str(e)}")
+                raise Exception("Database access permission denied")
+            elif "sql syntax" in str(e).lower():
+                logger.error(f"SQL query error: {str(e)}")
+                raise Exception("Error in database query")
+            else:
+                logger.error(f"Unexpected error fetching member data: {str(e)}")
+                return pd.DataFrame()
 
     @staticmethod
     def _clean_member_data(df: pd.DataFrame) -> pd.DataFrame:
         """Clean and standardize member data."""
-        # Convert string columns to lowercase for consistent filtering
-        string_columns = ['first_name', 'last_name', 'email']
-        for col in string_columns:
-            if col in df.columns:
-                df[col] = df[col].str.lower().str.strip()
-        
-        # Replace NaN values with empty strings
-        df = df.fillna('')
-        
-        return df
+        try:
+            # Convert string columns to lowercase for consistent filtering
+            string_columns = ['first_name', 'last_name', 'email']
+            for col in string_columns:
+                if col in df.columns:
+                    df[col] = df[col].str.lower().str.strip()
+            
+            # Replace NaN values with empty strings
+            df = df.fillna('')
+            
+            return df
+            
+        except Exception as e:
+            logger.warning(f"Error during data cleaning: {str(e)}")
+            return df  
 
 def server_personal_data(input, output, session):
     """Server logic for personal data with CRUD operations."""
@@ -78,6 +97,34 @@ def server_personal_data(input, output, session):
             logger.info("Successfully fetched member data")
         except Exception as e:
             logger.error(f"Error fetching member data: {str(e)}")
+<<<<<<< HEAD
+=======
+            ui.notification_show(
+                "Error loading member data",
+                type="error",
+                duration=5000
+            )
+            
+    # Add reactive effect for refresh button
+    @reactive.Effect
+    @reactive.event(input.refresh_data)
+    def _handle_refresh():
+        """Handle refresh button click."""
+        with ui.Progress(min=0, max=100) as p:
+            p.set(message="Refreshing data...", value=0)
+            fetch_member_data()
+            p.set(value=100)
+        ui.notification_show(
+            "Data refreshed successfully",
+            type="success",
+            duration=2000
+        )
+        
+        # Preserve current tab selection
+        current_tab = input.member_crud_tabs()
+        if current_tab:
+            ui.update_nav_set("member_crud_tabs", selected=current_tab)
+>>>>>>> 440eda16b18c98f0352f7b5ddd4c3522fb255641
     
     def apply_filters():
         """Apply search and status filters to member data."""
