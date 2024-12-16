@@ -97,13 +97,6 @@ def server_personal_data(input, output, session):
             logger.info("Successfully fetched member data")
         except Exception as e:
             logger.error(f"Error fetching member data: {str(e)}")
-<<<<<<< HEAD
-=======
-            ui.notification_show(
-                "Error loading member data",
-                type="error",
-                duration=5000
-            )
             
     # Add reactive effect for refresh button
     @reactive.Effect
@@ -120,12 +113,6 @@ def server_personal_data(input, output, session):
             duration=2000
         )
         
-        # Preserve current tab selection
-        current_tab = input.member_crud_tabs()
-        if current_tab:
-            ui.update_nav_set("member_crud_tabs", selected=current_tab)
->>>>>>> 440eda16b18c98f0352f7b5ddd4c3522fb255641
-    
     def apply_filters():
         """Apply search and status filters to member data."""
         df = member_data.get()
